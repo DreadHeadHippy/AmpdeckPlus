@@ -42,7 +42,7 @@ Ampdeck brings Plexamp to your Stream Deck+. See your album art, track info, and
 
 1. Find **Ampdeck** in the actions list on the right side of the Stream Deck app
 2. Drag **Album Art** to any button
-3. Drag **Now Playing Strip** to all 4 dials
+3. Drag **Now Playing Strip** to between 1 and 4 dials
 4. Optionally drag **Play/Pause**, **Previous**, **Next**, **Track Info**, or **Time Elapsed** to buttons
 5. Click any Ampdeck action and configure:
    - **Server URL** — Your Plex server address (e.g. `http://192.168.1.100:32400`)
