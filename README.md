@@ -45,21 +45,6 @@ Ampdeck works on **any Stream Deck model** — the button actions (Album Art, Pl
 | Dial Controls | — | ✓ |
 | Spanning Progress Bar | — | ✓ |
 
-## Compatibility
-
-Ampdeck works on **any Stream Deck model** — the button actions (Album Art, Play/Pause, Previous, Next, Track Info, Time Elapsed) work on every device with LCD keys. The Now Playing Strip with dials and progress bar is exclusive to the **Stream Deck+**.
-
-| Feature | Stream Deck / XL / MK.2 / Mini / Neo | Stream Deck+ |
-|---------|:-------------------------------------:|:------------:|
-| Album Art | ✓ | ✓ |
-| Play / Pause | ✓ | ✓ |
-| Previous / Next | ✓ | ✓ |
-| Track Info | ✓ | ✓ |
-| Time Elapsed | ✓ | ✓ |
-| Now Playing Strip | — | ✓ |
-| Dial Controls | — | ✓ |
-| Spanning Progress Bar | — | ✓ |
-
 ## Requirements
 
 - Any [Stream Deck](https://www.elgato.com/stream-deck) model (Stream Deck+ recommended for the full experience)
