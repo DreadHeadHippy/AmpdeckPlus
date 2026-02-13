@@ -153,6 +153,53 @@ function getNextCommandID() {
 }
 
 // ============================================
+// URL VALIDATION & SECURITY
+// ============================================
+function validateUrl(url, allowHttp) {
+    if (!url || typeof url !== 'string') return { valid: false, error: "URL is required" };
+    
+    try {
+        var parsed = new URL(url);
+        
+        // Only allow HTTP(S) protocols
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
+        }
+        
+        // Warn about HTTP if not explicitly allowed
+        if (parsed.protocol === 'http:' && !allowHttp) {
+            // Allow localhost/127.0.0.1 over HTTP (for local player)
+            var isLocalhost = parsed.hostname === 'localhost' || 
+                            parsed.hostname === '127.0.0.1' || 
+                            parsed.hostname.startsWith('192.168.') ||
+                            parsed.hostname.startsWith('10.') ||
+                            parsed.hostname.startsWith('172.');
+            
+            if (!isLocalhost) {
+                return { valid: false, error: "HTTPS required for remote servers. HTTP is only allowed for local network." };
+            }
+        }
+        
+        return { valid: true, url: parsed.href };
+    } catch (e) {
+        return { valid: false, error: "Invalid URL format: " + e.message };
+    }
+}
+
+function createSecureHeaders(includeToken) {
+    var headers = {
+        "Accept": "application/json",
+        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER
+    };
+    
+    if (includeToken && globalSettings.plexToken) {
+        headers["X-Plex-Token"] = globalSettings.plexToken;
+    }
+    
+    return headers;
+}
+
+// ============================================
 // DISPLAY POSITION
 // ============================================
 function updateDisplayPosition() {
@@ -508,14 +555,15 @@ function serverCommand(path, extraParams) {
     }
 
     var url = globalSettings.plexServerUrl + path + "?commandID=1"
-        + "&X-Plex-Token=" + globalSettings.plexToken
         + "&X-Plex-Target-Client-Identifier=" + machineId;
 
     if (extraParams) url += "&" + extraParams;
 
     logDebug("Server fallback command: " + url);
 
-    return fetch(url).then(function(r) {
+    return fetch(url, {
+        headers: createSecureHeaders(true)
+    }).then(function(r) {
         if (!r.ok) logError("Server command failed: HTTP " + r.status + " for " + path);
         else logDebug("Server command OK: " + path);
         return r;
@@ -617,14 +665,15 @@ function setRating(rating, ctx) {
     }
     
     var ratingKey = currentTrack.ratingKey;
-    var url = serverUrl + "/:/rate?key=" + ratingKey + "&identifier=com.plexapp.plugins.library&rating=" + currentRating + "&X-Plex-Token=" + token;
+    var url = serverUrl + "/:/rate?key=" + ratingKey + "&identifier=com.plexapp.plugins.library&rating=" + currentRating;
     
-    debugLog("[RATING]", "Sending PUT request to: " + url.replace(/X-Plex-Token=[^&]+/, "X-Plex-Token=***"));
+    debugLog("[RATING]", "Sending PUT request to: " + url);
     
     fetch(url, { 
         method: "PUT",
         headers: {
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "X-Plex-Token": token
         }
     })
         .then(function(r) {
@@ -860,10 +909,15 @@ function fetchTrackMetadata(ratingKey, machineId, address, port, protocol, token
         return;
     }
 
-    var url = serverUrl + "/library/metadata/" + ratingKey + "?X-Plex-Token=" + serverToken;
+    var url = serverUrl + "/library/metadata/" + ratingKey;
     logDebug("Fetching track metadata: " + url);
 
-    fetch(url, { headers: { "Accept": "application/json" } })
+    fetch(url, { 
+        headers: { 
+            "Accept": "application/json",
+            "X-Plex-Token": serverToken
+        } 
+    })
         .then(function(r) {
             if (!r.ok) throw new Error("HTTP " + r.status);
             return r.json();
@@ -920,10 +974,14 @@ function fetchAlbumArtFromTimeline(thumbPath, address, port, protocol, token) {
         return;
     }
 
-    var url = serverUrl + thumbPath + "?X-Plex-Token=" + serverToken;
+    var url = serverUrl + thumbPath;
     logDebug("Fetching album art: " + url);
 
-    fetch(url)
+    fetch(url, {
+        headers: {
+            "X-Plex-Token": serverToken
+        }
+    })
         .then(function(r) {
             if (!r.ok) throw new Error("HTTP " + r.status);
             return r.blob();
@@ -977,7 +1035,12 @@ function pollPlexServer() {
 
     logDebug("Falling back to server session poll");
 
-    fetch(globalSettings.plexServerUrl + "/status/sessions?X-Plex-Token=" + globalSettings.plexToken, { headers: { "Accept": "application/json" } })
+    fetch(globalSettings.plexServerUrl + "/status/sessions", { 
+        headers: { 
+            "Accept": "application/json",
+            "X-Plex-Token": globalSettings.plexToken
+        } 
+    })
         .then(function(r) {
             if (!r.ok) throw new Error("HTTP " + r.status);
             serverConnected = true;
@@ -1044,8 +1107,13 @@ function fetchAlbumTrackCount(parentRatingKey) {
     lastParentRatingKey = parentRatingKey;
     albumTrackCount = null;
 
-    var url = globalSettings.plexServerUrl + "/library/metadata/" + parentRatingKey + "/children?X-Plex-Token=" + globalSettings.plexToken;
-    fetch(url, { headers: { "Accept": "application/json" } })
+    var url = globalSettings.plexServerUrl + "/library/metadata/" + parentRatingKey + "/children";
+    fetch(url, { 
+        headers: { 
+            "Accept": "application/json",
+            "X-Plex-Token": globalSettings.plexToken
+        } 
+    })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data && data.MediaContainer && data.MediaContainer.size) {
@@ -1059,10 +1127,14 @@ function fetchAlbumTrackCount(parentRatingKey) {
 function fetchAlbumArt(thumbPath) {
     if (!globalSettings.plexServerUrl || !globalSettings.plexToken) return;
 
-    var url = globalSettings.plexServerUrl + thumbPath + "?X-Plex-Token=" + globalSettings.plexToken;
+    var url = globalSettings.plexServerUrl + thumbPath;
     logDebug("Fetching album art (server): " + url);
 
-    fetch(url)
+    fetch(url, {
+        headers: {
+            "X-Plex-Token": globalSettings.plexToken
+        }
+    })
         .then(function(r) {
             if (!r.ok) throw new Error("HTTP " + r.status);
             return r.blob();

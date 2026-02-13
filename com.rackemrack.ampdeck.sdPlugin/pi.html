@@ -220,12 +220,51 @@
             };
         }
 
+        function validateUrl(url, allowLocalHttp) {
+            if (!url) return { valid: true }; // Empty is ok
+            try {
+                const parsed = new URL(url);
+                if (!['http:', 'https:'].includes(parsed.protocol)) {
+                    return { valid: false, error: 'Only HTTP and HTTPS are allowed' };
+                }
+                if (parsed.protocol === 'http:' && !allowLocalHttp) {
+                    const isLocal = parsed.hostname === 'localhost' || 
+                                  parsed.hostname === '127.0.0.1' ||
+                                  parsed.hostname.startsWith('192.168.') ||
+                                  parsed.hostname.startsWith('10.') ||
+                                  parsed.hostname.startsWith('172.');
+                    if (!isLocal) {
+                        return { valid: false, error: 'HTTPS required for remote servers' };
+                    }
+                }
+                return { valid: true };
+            } catch (e) {
+                return { valid: false, error: 'Invalid URL: ' + e.message };
+            }
+        }
+
         function saveSettings() {
+            const playerUrl = document.getElementById('playerUrl').value.trim();
+            const serverUrl = document.getElementById('plexServerUrl').value.trim();
+            
+            // Validate URLs
+            const playerValidation = validateUrl(playerUrl, true);
+            const serverValidation = validateUrl(serverUrl, false);
+            
+            if (!playerValidation.valid) {
+                showStatus('error', 'Player URL: ' + playerValidation.error);
+                return;
+            }
+            if (!serverValidation.valid) {
+                showStatus('error', 'Server URL: ' + serverValidation.error);
+                return;
+            }
+            
             const settings = {
                 textColor: document.getElementById('textColor').value,
                 dynamicColors: document.getElementById('dynamicColors').checked,
-                playerUrl: document.getElementById('playerUrl').value.trim(),
-                plexServerUrl: document.getElementById('plexServerUrl').value.trim(),
+                playerUrl: playerUrl,
+                plexServerUrl: serverUrl,
                 plexToken: document.getElementById('plexToken').value.trim(),
                 clientName: document.getElementById('clientName').value.trim(),
                 syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
@@ -245,6 +284,12 @@
                     payload: settings
                 }));
             }
+        }
+        
+        function showStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'show ' + type;
+            statusEl.textContent = message;
         }
 
         document.getElementById('textColor').addEventListener('change', saveSettings);
@@ -314,8 +359,11 @@
             statusEl.textContent = 'Testing server connection...';
 
             try {
-                const response = await fetch(serverUrl + '/status/sessions?X-Plex-Token=' + token, {
-                    headers: { 'Accept': 'application/json' }
+                const response = await fetch(serverUrl + '/status/sessions', {
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Plex-Token': token
+                    }
                 });
 
                 if (!response.ok) throw new Error('HTTP ' + response.status);
