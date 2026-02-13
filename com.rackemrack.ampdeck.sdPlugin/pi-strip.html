@@ -135,8 +135,18 @@
             <option value="none">None</option>
             <option value="skip">Rotate: Next/Previous, Press: Play/Pause</option>
             <option value="volume">Rotate: Volume, Press: Play/Pause</option>
+            <option value="rating">Rotate: Star Rating, Press: Play/Pause</option>
         </select>
         <div class="help-text">What the physical dial does when rotated</div>
+    </div>
+
+    <div class="sdpi-item" id="ratingModeContainer" style="display: none;">
+        <label>Rating Mode</label>
+        <select id="ratingMode">
+            <option value="half">Half Star (0.5 increment per scroll)</option>
+            <option value="full">Full Star (1.0 increment per scroll)</option>
+        </select>
+        <div class="help-text">How much each scroll changes the rating</div>
     </div>
 
     <div class="sdpi-item">
@@ -256,6 +266,7 @@
             document.getElementById('displayMode').value = settings.displayMode || 'artist';
             document.getElementById('fontSize').value = settings.fontSize || '16';
             document.getElementById('dialAction').value = settings.dialAction || 'none';
+            document.getElementById('ratingMode').value = settings.ratingMode || 'half';
             document.getElementById('dialPressAction').value = settings.dialPressAction || 'playpause';
             document.getElementById('progressTotalPanels').value = settings.progressTotalPanels || '3';
             document.getElementById('progressPosition').value = settings.progressPosition || '1';
@@ -267,6 +278,9 @@
             document.getElementById('clientName').value = settings.clientName || '';
             document.getElementById('syncOffset').value = settings.syncOffset !== undefined ? settings.syncOffset : 0;
             document.getElementById('debugMode').checked = settings.debugMode === true;
+            
+            // Show/hide rating mode based on dial action
+            updateRatingModeVisibility();
 
             websocket = new WebSocket('ws://127.0.0.1:' + inPort);
             
@@ -298,11 +312,18 @@
             };
         }
 
+        function updateRatingModeVisibility() {
+            const dialAction = document.getElementById('dialAction').value;
+            const ratingModeContainer = document.getElementById('ratingModeContainer');
+            ratingModeContainer.style.display = (dialAction === 'rating') ? 'block' : 'none';
+        }
+
         function saveSettings() {
             const settings = {
                 displayMode: document.getElementById('displayMode').value,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
+                ratingMode: document.getElementById('ratingMode').value,
                 dialPressAction: document.getElementById('dialPressAction').value,
                 progressTotalPanels: document.getElementById('progressTotalPanels').value,
                 progressPosition: document.getElementById('progressPosition').value,
@@ -342,7 +363,11 @@
 
         document.getElementById('displayMode').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
-        document.getElementById('dialAction').addEventListener('change', saveSettings);
+        document.getElementById('dialAction').addEventListener('change', function() {
+            updateRatingModeVisibility();
+            saveSettings();
+        });
+        document.getElementById('ratingMode').addEventListener('change', saveSettings);
         document.getElementById('dialPressAction').addEventListener('change', saveSettings);
         document.getElementById('progressTotalPanels').addEventListener('change', saveSettings);
         document.getElementById('progressPosition').addEventListener('change', saveSettings);

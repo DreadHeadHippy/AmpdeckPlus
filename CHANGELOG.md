@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.2.0
+
+### New Features
+- **Star Rating dial action**: New "Rotate: Star Rating" option for the dial. Scroll to adjust the current track's rating (0-5 stars). Supports both half-star and full-star modes.
+  - **Half Star mode**: Each scroll increments by 0.5 stars (★⯨☆☆☆)
+  - **Full Star mode**: Each scroll increments by 1.0 stars (★★☆☆☆)
+  - Visual overlay shows star rating with Unicode stars during adjustment
+  - **Debounced saving**: Rating saves 2 seconds after you stop rotating, letting you adjust freely before committing
+  - **Success confirmation**: "SAVED!" overlay appears when rating is successfully saved to Plex
+  - Ratings are saved directly to Plex server and persist across library
+  - Current track ratings are loaded and displayed when tracks change
+- **Rating mode setting**: New dropdown to choose between half-star and full-star rating increments (only appears when rating dial action is selected)
+- **Error feedback**: API errors (missing server config, authentication failures, etc.) are displayed directly on the strip
+
+### Bug Fixes
+- **Fixed overlay display reversion**: Strip overlays (volume, rating, next/prev) now properly clear and revert to the original display mode after 1.5 seconds. Corrected layout geometry that was causing element overlap errors.
+- **Fixed layout overlap errors**: Adjusted touch strip layout positioning to prevent `progressBar` and `displayText` element conflicts
+
+### Technical Notes
+- Current track rating is extracted from timeline metadata (`userRating` attribute, 0-10 scale where 0=unrated, 2=1★, 10=5★)
+- Rating updates use Plex's `/:/rate` API endpoint with the track's ratingKey
+- Rating overlay uses Unicode characters: ★ (filled), ☆ (empty), ⯨ (half)
+- Debounce timer prevents multiple API calls while user is adjusting rating
+- Rating changes are protected from being overwritten by timeline polls for 3 seconds after user adjustment
+- Plexamp UI may not immediately reflect rating changes due to caching; skip forward/back to refresh
+
 ## v1.1.0
 
 ### Major Changes

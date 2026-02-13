@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "============================================="
-echo " Ampdeck v1.0.1 - Stream Deck Plugin"
+echo " Ampdeck v1.2.0 - Stream Deck Plugin"
 echo " The Unofficial Plexamp Controller"
 echo "============================================="
 echo ""

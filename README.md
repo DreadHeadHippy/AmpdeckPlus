@@ -15,7 +15,8 @@ Ampdeck brings Plexamp to your Stream Deck. See your album art, track info, and 
 
 - **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text.
-- **Dial Controls** — Configurable dial actions: rotate to skip tracks or adjust volume. Press to play/pause, toggle shuffle, or cycle repeat.
+- **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
+- **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial. Visual feedback shows the rating with stars.
 - **Touch Strip Controls** — Tap to play/pause with visual feedback overlays showing the action taken.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
 - **Play / Pause** — Dedicated button with instant visual feedback.
@@ -111,7 +112,8 @@ Each dial panel can be configured independently:
 |---------|---------|
 | **Display Mode** | Artist, Album, Track Title, or Time |
 | **Font Size** | Small (12) through XX-Large (28) |
-| **Dial Action** | None, Next/Previous (rotate), or Volume (rotate) |
+| **Dial Action** | None, Next/Previous (rotate), Volume (rotate), or Star Rating (rotate) |
+| **Rating Mode** | Half Star (0.5 increment) or Full Star (1.0 increment) — only appears when Dial Action is set to Star Rating |
 | **Dial Press** | Play/Pause, Toggle Shuffle, or Cycle Repeat |
 | **Total Panels** | How many panels share the progress bar (1–4) |
 | **Panel Position** | This panel's position in the progress bar sequence, or None to disable |
