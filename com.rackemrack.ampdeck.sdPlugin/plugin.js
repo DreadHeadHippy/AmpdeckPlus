@@ -75,6 +75,7 @@ var RATING_FULL_STAR = 2;
 var lastRatingChangeTime = 0; // Timestamp to prevent timeline from overwriting user changes
 var ratingSaveTimer = null; // Timer for debounced rating save
 var pendingRatingContext = null; // Context that has a pending rating save
+var userSetRatings = {}; // Track user-set ratings by ratingKey to handle Plex cache delays
 
 // Local player API command tracking
 var localCommandID = 0;
@@ -389,6 +390,7 @@ function onKeyUp(data) {
         else if (action === "com.rackemrack.ampdeck.next") skipNext();
         else if (action === "com.rackemrack.ampdeck.shuffle") toggleShuffle();
         else if (action === "com.rackemrack.ampdeck.repeat") cycleRepeat();
+        else if (action === "com.rackemrack.ampdeck.rating") cycleRating(ctx);
     }
     delete buttonHoldState[ctx];
 }
@@ -435,6 +437,11 @@ function onDialRotate(data) {
         // Update rating locally (don't save yet)
         currentRating = newRating;
         lastRatingChangeTime = Date.now();
+        
+        // Store this rating for this track to handle Plex cache delays
+        if (currentTrack && currentTrack.ratingKey) {
+            userSetRatings[currentTrack.ratingKey] = newRating;
+        }
         
         // Show overlay immediately
         var stars = formatRating(newRating, ratingMode);
@@ -639,6 +646,38 @@ function cycleRepeat() {
     updateAllDisplays();
 }
 
+function cycleRating(ctx) {
+    if (!currentTrack || !currentTrack.ratingKey) {
+        logWarn("Cannot rate: No current track");
+        return;
+    }
+    
+    // Get rating mode from button settings
+    var settings = actions[ctx] ? actions[ctx].settings : {};
+    var ratingMode = settings.ratingMode || "half";
+    var step = ratingMode === "half" ? RATING_HALF_STAR : RATING_FULL_STAR;
+    
+    // Cycle through ratings: 0 → step → 2*step → ... → 10 → 0
+    var newRating = currentRating + step;
+    if (newRating > 10) newRating = 0;
+    
+    currentRating = newRating;
+    lastRatingChangeTime = Date.now();
+    
+    // Store this rating for this track to handle Plex cache delays
+    if (currentTrack && currentTrack.ratingKey) {
+        userSetRatings[currentTrack.ratingKey] = newRating;
+    }
+    
+    logDebug("Rating cycled to: " + (newRating / 2).toFixed(1) + " stars (" + newRating + "/10) [mode: " + ratingMode + "]");
+    
+    // Update display immediately
+    updateAllDisplays();
+    
+    // Save to Plex server
+    setRating(newRating, null);
+}
+
 function setRating(rating, ctx) {
     debugLog("[RATING]", "setRating called with: " + rating);
     if (!currentTrack || !currentTrack.ratingKey) {
@@ -686,22 +725,19 @@ function setRating(rating, ctx) {
                 });
             } else {
                 debugLog("[RATING]", "SUCCESS: HTTP " + r.status + ", Rating set to " + currentRating);
-                // Show success message immediately
-                if (ctx) {
-                    showStripOverlay(ctx, "SAVED!", formatRating(currentRating, "half"));
-                }
                 // Update the track's userRating immediately so it's in sync
                 if (currentTrack) {
                     currentTrack.userRating = currentRating;
                 }
-                // Force an immediate timeline poll to refresh Plexamp's display
-                pollTimeline();
+                // Note: Not polling timeline immediately as Plex cache may not be updated yet
+                // The grace period mechanism will prevent stale data from overwriting our change
+                // Success: no overlay shown, rating persists visibly on dial/button
             }
         })
         .catch(function(e) {
             debugLog("[RATING]", "ERROR: " + e.message);
             // Show fetch error on strip display
-            showStripOverlay(ctx, "FETCH ERR", e.message.substring(0, 20));
+            if (ctx) showStripOverlay(ctx, "FETCH ERR", e.message.substring(0, 20));
         });
 }
 
@@ -871,16 +907,35 @@ function updateTrackFromTimelineMetadata(trackEl, machineId, address, port, prot
     track.grandparentThumb = trackEl.getAttribute("grandparentThumb") || "";
 
     var trackChanged = !currentTrack || currentTrack.ratingKey !== track.ratingKey;
+    
+    // Clear old rating overrides when track changes to prevent memory buildup
+    if (trackChanged && currentTrack && currentTrack.ratingKey && userSetRatings[currentTrack.ratingKey] !== undefined) {
+        delete userSetRatings[currentTrack.ratingKey];
+        debugLog("[RATING]", "Cleared old rating override for previous track");
+    }
+    
     currentTrack = track;
     
-    // Update current rating from track, but only if we haven't manually changed it recently
-    // This prevents the timeline poll from overwriting user rating changes
-    var timeSinceRatingChange = Date.now() - lastRatingChangeTime;
-    if (timeSinceRatingChange > 3000) {  // 3 second grace period
-        currentRating = track.userRating || 0;
-        debugLog("[RATING]", "Updated currentRating from track: " + currentRating);
+    // Update rating with smart caching to handle Plex delays
+    var incomingRating = track.userRating || 0;
+    var userSetRating = userSetRatings[track.ratingKey];
+    
+    if (userSetRating !== undefined) {
+        // We recently set a rating for this track
+        if (incomingRating >= userSetRating) {
+            // Plex has updated (or user rated higher elsewhere), accept it
+            currentRating = incomingRating;
+            delete userSetRatings[track.ratingKey];
+            debugLog("[RATING]", "Plex cache updated, accepting rating: " + currentRating);
+        } else {
+            // Plex cache still stale, keep our local value
+            currentRating = userSetRating;
+            debugLog("[RATING]", "Plex cache stale (" + incomingRating + "), keeping local rating: " + currentRating);
+        }
     } else {
-        debugLog("[RATING]", "Skipping rating update (recently changed by user)");
+        // No local override, accept from Plex
+        currentRating = incomingRating;
+        debugLog("[RATING]", "Updated currentRating from track: " + currentRating);
     }
 
     if (trackChanged) {
@@ -932,13 +987,26 @@ function fetchTrackMetadata(ratingKey, machineId, address, port, protocol, token
                 };
                 currentTrack = meta;
                 
-                // Only update rating if we haven't manually changed it recently
-                var timeSinceRatingChange = Date.now() - lastRatingChangeTime;
-                if (timeSinceRatingChange > 3000) {
-                    currentRating = meta.userRating || 0;
-                    debugLog("[RATING]", "Updated currentRating from metadata: " + currentRating);
+                // Update rating with smart caching to handle Plex delays
+                var incomingRating = meta.userRating || 0;
+                var userSetRating = userSetRatings[meta.ratingKey];
+                
+                if (userSetRating !== undefined) {
+                    // We recently set a rating for this track
+                    if (incomingRating >= userSetRating) {
+                        // Plex has updated (or user rated higher elsewhere), accept it
+                        currentRating = incomingRating;
+                        delete userSetRatings[meta.ratingKey];
+                        debugLog("[RATING]", "Plex cache updated from metadata, accepting: " + currentRating);
+                    } else {
+                        // Plex cache still stale, keep our local value
+                        currentRating = userSetRating;
+                        debugLog("[RATING]", "Plex metadata cache stale, keeping local: " + currentRating);
+                    }
                 } else {
-                    debugLog("[RATING]", "Skipping rating update from metadata (recently changed by user)");
+                    // No local override, accept from Plex
+                    currentRating = incomingRating;
+                    debugLog("[RATING]", "Updated currentRating from metadata: " + currentRating);
                 }
                 
                 serverConnected = true;
@@ -1019,6 +1087,7 @@ function handleNoSession() {
         currentShuffle = 0;
         currentRepeat = 0;
         currentRating = 0;
+        userSetRatings = {}; // Clear all cached ratings when no session
         updateDisplayPosition();
         updateAllDisplays();
     }
@@ -1055,6 +1124,12 @@ function pollPlexServer() {
                 var newPosition = track.viewOffset || 0;
                 var trackChanged = !currentTrack || currentTrack.ratingKey !== track.ratingKey;
 
+                // Clear old rating overrides when track changes
+                if (trackChanged && currentTrack && currentTrack.ratingKey && userSetRatings[currentTrack.ratingKey] !== undefined) {
+                    delete userSetRatings[currentTrack.ratingKey];
+                    debugLog("[RATING]", "Cleared old rating override for previous track (server poll)");
+                }
+
                 var syncOffset = globalSettings.syncOffset !== undefined ? parseInt(globalSettings.syncOffset) : 0;
                 currentPosition = newPosition + syncOffset;
                 lastPositionTimestamp = (newState === "playing") ? Date.now() : 0;
@@ -1062,7 +1137,26 @@ function pollPlexServer() {
                 playbackState = newState;
                 trackDuration = newDuration;
                 currentTrack = track;
-                currentRating = track.userRating || 0;
+                
+                // Update rating with smart caching to handle Plex delays
+                var incomingRating = track.userRating || 0;
+                var userSetRating = userSetRatings[track.ratingKey];
+                
+                if (userSetRating !== undefined) {
+                    // We recently set a rating for this track
+                    if (incomingRating >= userSetRating) {
+                        // Plex has updated, accept it
+                        currentRating = incomingRating;
+                        delete userSetRatings[track.ratingKey];
+                        debugLog("[RATING]", "Server poll: Plex updated, accepting: " + currentRating);
+                    } else {
+                        // Plex cache still stale, keep our local value
+                        currentRating = userSetRating;
+                        debugLog("[RATING]", "Server poll: keeping local rating: " + currentRating);
+                    }
+                } else {
+                    currentRating = incomingRating;
+                }
 
                 if (trackChanged) {
                     albumTrackCount = null;
@@ -1165,6 +1259,7 @@ function updateAllDisplays() {
         else if (action === "com.rackemrack.ampdeck.play-pause") updatePlayPauseButton(ctx);
         else if (action === "com.rackemrack.ampdeck.info") updateInfoButton(ctx);
         else if (action === "com.rackemrack.ampdeck.time") updateTimeButton(ctx);
+        else if (action === "com.rackemrack.ampdeck.rating") updateRatingButton(ctx);
         else if (action === "com.rackemrack.ampdeck.shuffle") updateShuffleButton(ctx);
         else if (action === "com.rackemrack.ampdeck.repeat") updateRepeatButton(ctx);
     }
@@ -1307,6 +1402,69 @@ function updateTimeButton(ctx) {
             c.fillStyle = accentColor;
             c.fillRect(15, 108, (displayProgress / 100) * 114, 10);
         }
+    }
+    setImage(ctx, canvas.toDataURL("image/png"));
+}
+
+function updateRatingButton(ctx) {
+    var canvas = document.createElement("canvas");
+    canvas.width = 144; canvas.height = 144;
+    var c = canvas.getContext("2d");
+    c.fillStyle = "#000000";
+    c.fillRect(0, 0, 144, 144);
+
+    var settings = actions[ctx] ? actions[ctx].settings : {};
+    var fontSize = parseInt(settings.ratingFontSize) || 48;
+    var ratingMode = settings.ratingMode || "half";
+    var displayStyle = settings.ratingDisplay || "stars";
+    
+    var textColor = getTextColor();
+    var secondaryColor = getSecondaryTextColor();
+    var accentColor = getAccentColor();
+
+    if (currentTrack) {
+        // Display "RATING" label at top
+        c.textAlign = "center";
+        c.font = "bold 16px sans-serif";
+        c.fillStyle = textColor;
+        c.fillText("RATING", 72, 28);
+
+        // Display rating based on style preference
+        var hasHalfStar = currentRating % 2 === 1;
+        var numericRating;
+        
+        if (displayStyle === "stars") {
+            // Stars only
+            var stars = formatRating(currentRating, ratingMode);
+            c.font = "bold " + fontSize + "px sans-serif";
+            c.fillStyle = accentColor;
+            c.fillText(stars, 72, 90);
+        } else if (displayStyle === "numeric") {
+            // Numeric only (e.g., "4.5" or "4")
+            c.font = "bold " + fontSize + "px sans-serif";
+            c.fillStyle = accentColor;
+            if (currentRating === 0) {
+                c.fillText("0", 72, 90);
+            } else {
+                numericRating = hasHalfStar ? (currentRating / 2).toFixed(1) : (currentRating / 2).toString();
+                c.fillText(numericRating, 72, 90);
+            }
+        } else {
+            // Both - numeric with scale (e.g., "4.5/5" or "4/5")
+            c.font = "bold " + fontSize + "px sans-serif";
+            c.fillStyle = accentColor;
+            if (currentRating === 0) {
+                c.fillText("0/5", 72, 90);
+            } else {
+                numericRating = hasHalfStar ? (currentRating / 2).toFixed(1) : (currentRating / 2).toString();
+                c.fillText(numericRating + "/5", 72, 90);
+            }
+        }
+    } else {
+        c.fillStyle = "#333333";
+        c.textAlign = "center";
+        c.font = "16px sans-serif";
+        c.fillText("No Track", 72, 76);
     }
     setImage(ctx, canvas.toDataURL("image/png"));
 }

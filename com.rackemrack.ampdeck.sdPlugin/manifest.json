@@ -6,7 +6,7 @@
   "Name": "Ampdeck",
   "Icon": "imgs/plugin-icon",
   "URL": "https://plex.tv",
-  "Version": "1.2.0",
+  "Version": "1.3.0",
   "Category": "Ampdeck",
   "CategoryIcon": "imgs/category-icon",
   "OS": [
@@ -127,6 +127,20 @@
       "SupportedInMultiActions": false,
       "Tooltip": "Shows elapsed / total time with progress bar",
       "UUID": "com.rackemrack.ampdeck.time",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/rating-icon",
+      "Name": "Rating",
+      "States": [
+        {
+          "Image": "imgs/rating-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows current track rating. Tap to cycle ratings.",
+      "UUID": "com.rackemrack.ampdeck.rating",
       "PropertyInspectorPath": "pi.html"
     },
     {

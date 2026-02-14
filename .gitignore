@@ -18,3 +18,8 @@ node_modules/
 
 # Logs
 *.log
+
+# Personal messages/notes
+MESSAGE_TO_RACKEMRACK.md
+PR_MESSAGE_V1.3.0.md
+RELEASE_NOTES_V1.3.0.md

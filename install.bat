@@ -1,6 +1,6 @@
 @echo off
 echo =============================================
-echo  Ampdeck v1.2.0 - Stream Deck Plugin
+echo  Ampdeck v1.3.0 - Stream Deck Plugin
 echo  The Unofficial Plexamp Controller
 echo =============================================
 echo.

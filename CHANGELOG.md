@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.3.0
+
+### New Features
+- **Rating Button**: New dedicated button action that displays the current track's star rating. Tap to cycle through ratings with configurable half-star or full-star increments.
+  - Three display styles: Stars Only (★★★★☆), Numeric Only (4.5), or Both (4.5 / 5)
+  - Configurable font size (32px - 56px)
+  - Works with the same rating modes as the dial (half-star or full-star)
+  - Visual display updates immediately
+  - Each Rating button can have its own display style, font size, and rating mode settings
+  - Ratings persist correctly even with Plex's server-side caching delays
+
+### Bug Fixes
+- **Fixed rating persistence**: Implemented smart caching system to handle Plex's server-side cache delays. Ratings no longer revert to zero after being set. The plugin now tracks user-set ratings per track and only accepts server updates when they match or exceed the local value.
+- **Removed redundant overlays**: "SAVED!" confirmation overlay removed from dial rating changes since ratings now persist visibly. Error overlays still shown when needed.
+- **Fixed rating protection**: Rating updates are now protected across all three data sources (timeline polls, metadata fetches, and server polls) using track-specific caching instead of time-based grace periods.
+
+### Technical Notes
+- New `userSetRatings` cache tracks user-initiated rating changes by `ratingKey`
+- Smart cache comparison: accepts incoming ratings from Plex only when they meet or exceed locally set values
+- Automatic cleanup of old rating overrides when tracks change to prevent memory buildup
+- Rating button uses per-button settings stored in action context
+- Success responses from rating API are now silent (errors only shown)
+
 ## v1.2.0
 
 ### New Features

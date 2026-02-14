@@ -122,6 +122,40 @@
     </div>
     <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When off, accent colors stay orange</div>
 
+    <div id="ratingSettings" style="display: none;">
+        <div class="sdpi-heading">Rating Button Settings</div>
+        
+        <div class="sdpi-item">
+            <label>Display Style</label>
+            <select id="ratingDisplay">
+                <option value="stars">Stars Only (★★★★☆)</option>
+                <option value="numeric">Numeric Only (4.5)</option>
+                <option value="both">Both (4.5 / 5)</option>
+            </select>
+            <div class="help-text">How to display the rating</div>
+        </div>
+        
+        <div class="sdpi-item">
+            <label>Font Size</label>
+            <select id="ratingFontSize">
+                <option value="32">Small (32px)</option>
+                <option value="40">Medium (40px)</option>
+                <option value="48">Large (48px)</option>
+                <option value="56">Extra Large (56px)</option>
+            </select>
+            <div class="help-text">Size of the rating display</div>
+        </div>
+        
+        <div class="sdpi-item">
+            <label>Rating Mode</label>
+            <select id="ratingMode">
+                <option value="half">Half Stars (0.5 increment)</option>
+                <option value="full">Full Stars (1.0 increment)</option>
+            </select>
+            <div class="help-text">Tap to cycle by half or full stars</div>
+        </div>
+    </div>
+
     <div class="sdpi-heading">Plexamp Player</div>
 
     <div class="sdpi-item">
@@ -180,6 +214,15 @@
             actionInfo = JSON.parse(inActionInfo);
             
             const settings = actionInfo.payload.settings || {};
+            const actionUUID = actionInfo.action;
+            
+            // Show rating settings only for rating button
+            if (actionUUID === 'com.rackemrack.ampdeck.rating') {
+                document.getElementById('ratingSettings').style.display = 'block';
+                document.getElementById('ratingDisplay').value = settings.ratingDisplay || 'stars';
+                document.getElementById('ratingFontSize').value = settings.ratingFontSize || '48';
+                document.getElementById('ratingMode').value = settings.ratingMode || 'half';
+            }
             
             document.getElementById('textColor').value = settings.textColor || '#FFFFFF';
             document.getElementById('dynamicColors').checked = settings.dynamicColors !== false;
@@ -270,6 +313,13 @@
                 syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
                 debugMode: document.getElementById('debugMode').checked
             };
+            
+            // Add rating-specific settings if rating button
+            if (actionInfo && actionInfo.action === 'com.rackemrack.ampdeck.rating') {
+                settings.ratingDisplay = document.getElementById('ratingDisplay').value;
+                settings.ratingFontSize = document.getElementById('ratingFontSize').value;
+                settings.ratingMode = document.getElementById('ratingMode').value;
+            }
 
             if (websocket && websocket.readyState === WebSocket.OPEN) {
                 websocket.send(JSON.stringify({
@@ -298,6 +348,9 @@
         document.getElementById('plexServerUrl').addEventListener('change', saveSettings);
         document.getElementById('plexToken').addEventListener('change', saveSettings);
         document.getElementById('clientName').addEventListener('change', saveSettings);
+        document.getElementById('ratingDisplay').addEventListener('change', saveSettings);
+        document.getElementById('ratingFontSize').addEventListener('change', saveSettings);
+        document.getElementById('ratingMode').addEventListener('change', saveSettings);
         document.getElementById('syncOffset').addEventListener('change', saveSettings);
         document.getElementById('debugMode').addEventListener('change', saveSettings);
 
