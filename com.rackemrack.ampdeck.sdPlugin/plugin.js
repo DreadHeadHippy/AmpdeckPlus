@@ -1376,19 +1376,19 @@ function updateInfoButton(ctx) {
         c.textAlign = "center";
         c.font = "bold 28px sans-serif";
         c.fillStyle = textColor;
-        c.fillText(format, 72, 42);
+        c.fillText(format, 72, 32);
 
-        c.font = "14px sans-serif";
-        c.fillStyle = secondaryColor;
-        c.fillText(bitrate, 72, 62);
+        c.font = "bold 22px sans-serif";
+        c.fillStyle = accentColor;
+        c.fillText(bitrate, 72, 65);
 
-        c.font = "bold 16px sans-serif";
+        c.font = "bold 24px sans-serif";
         c.fillStyle = textColor;
         c.fillText("TRACK", 72, 95);
 
-        c.font = "bold 28px sans-serif";
+        c.font = "bold 32px sans-serif";
         c.fillStyle = accentColor;
-        c.fillText(trackNum + "/" + totalTracks, 72, 125);
+        c.fillText(trackNum + "/" + totalTracks, 72, 132);
     } else {
         c.fillStyle = "#333333";
         c.textAlign = "center";
@@ -1417,22 +1417,22 @@ function updateTimeButton(ctx) {
         c.font = "20px sans-serif";
         c.fillText("/ 0:00", 72, 82);
         c.fillStyle = "#333333";
-        c.fillRect(15, 108, 114, 10);
+        c.fillRect(15, 113, 114, 10);
     } else {
         c.textAlign = "center";
         c.font = "bold 36px sans-serif";
         c.fillStyle = textColor;
         c.fillText(formatTime(currentPosition), 72, 55);
 
-        c.font = "20px sans-serif";
-        c.fillStyle = secondaryColor;
-        c.fillText("/ " + formatTime(trackDuration), 72, 82);
+        c.font = "bold 36px sans-serif";
+        c.fillStyle = accentColor;
+        c.fillText("/ " + formatTime(trackDuration), 72, 98);
 
         c.fillStyle = "#333333";
-        c.fillRect(15, 108, 114, 10);
+        c.fillRect(15, 113, 114, 10);
         if (displayProgress > 0) {
             c.fillStyle = accentColor;
-            c.fillRect(15, 108, (displayProgress / 100) * 114, 10);
+            c.fillRect(15, 113, (displayProgress / 100) * 114, 10);
         }
     }
     setImage(ctx, canvas.toDataURL("image/png"));
@@ -1457,9 +1457,9 @@ function updateRatingButton(ctx) {
     if (currentTrack) {
         // Display "RATING" label at top
         c.textAlign = "center";
-        c.font = "bold 16px sans-serif";
+        c.font = "bold 26px sans-serif";
         c.fillStyle = textColor;
-        c.fillText("RATING", 72, 28);
+        c.fillText("RATING", 72, 32);
 
         // Display rating based on style preference
         var hasHalfStar = currentRating % 2 === 1;

@@ -2,6 +2,12 @@
 
 ## v1.3.1
 
+### Visual Improvements
+- **Track Info tile styling**: Bitrate (kbps) now uses dynamic accent color (22px bold) for better visual hierarchy and matches the accent color scheme from rating tile
+- **Time Elapsed tile styling**: Total track length now uses dynamic accent color (36px bold) matching the current time font size for improved visual balance
+- **Rating tile**: Increased "RATING" label from 16px to 26px bold for better readability
+- **Track Info tile uniformity**: Improved spacing and size consistency - codec/bitrate at 28px/22px, track label at 24px, track number at 32px
+
 ### Bug Fixes
 - **Fixed touch strip text color**: Track/artist/album names now display in the user's chosen text color (matching labels) instead of always grey when playing. Previously, both the label and content text were incorrectly using the secondary grey color due to a copy-paste error.
 - **Fixed rating button text positioning**: Numeric and "both" display modes now properly center text vertically regardless of font size. Previously, text would appear too high at larger font sizes.
