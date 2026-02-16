@@ -4,8 +4,12 @@
 
 ![Ampdeck on Stream Deck+](her0.png)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Release](https://img.shields.io/github/v/release/DreadHeadHippy/ampdeck)
+![Status](https://img.shields.io/badge/status-actively%20maintained-brightgreen)
+![Downloads](https://img.shields.io/github/downloads/DreadHeadHippy/ampdeck/total)
+![Last Commit](https://img.shields.io/github/last-commit/DreadHeadHippy/ampdeck)
 [![Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/rackemrack)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
@@ -63,7 +67,7 @@ That's it. Stream Deck handles the rest.
 
 ## Updating
 
-1. Download the latest **`com.dreadheadhippy.ampdeck.streamDeckPlugin`** from the [Releases](https://github.com/rackemrack/ampdeck/releases) page
+1. Download the latest **`install.bat`** from the [Releases](https://github.com/rackemrack/ampdeck/releases) page
 2. Double-click the file
 
 Stream Deck automatically replaces the old version. Your settings are preserved.
