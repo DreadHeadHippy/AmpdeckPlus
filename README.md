@@ -147,7 +147,7 @@ If something isn't working, enable **Debug Logging** in the Advanced section of 
 
 ## Manual Installation
 
-Copy the `com.rackemrack.ampdeck.sdPlugin` folder to:
+Copy the `com.dreadheadhippy.ampdeck.sdPlugin` folder to:
 
 **Windows:**
 ```

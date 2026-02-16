@@ -435,7 +435,7 @@
 
             try {
                 const response = await fetch(playerUrl + '/player/timeline/poll?wait=0&commandID=1', {
-                    headers: { 'X-Plex-Client-Identifier': 'com.rackemrack.ampdeck' }
+                    headers: { 'X-Plex-Client-Identifier': 'com.dreadheadhippy.ampdeck' }
                 });
 
                 if (!response.ok) throw new Error('HTTP ' + response.status);

@@ -79,7 +79,7 @@ var userSetRatings = {}; // Track user-set ratings by ratingKey to handle Plex c
 
 // Local player API command tracking
 var localCommandID = 0;
-var CLIENT_IDENTIFIER = "com.rackemrack.ampdeck";
+var CLIENT_IDENTIFIER = "com.dreadheadhippy.ampdeck";
 
 // Connection state tracking
 var localPlayerConnected = false;
@@ -368,7 +368,7 @@ function onKeyDown(data) {
     var ctx = data.context, action = data.action;
     buttonHoldState[ctx] = { pressTime: Date.now(), action: action, seekInterval: null, didSeek: false };
 
-    if (action === "com.rackemrack.ampdeck.previous" || action === "com.rackemrack.ampdeck.next") {
+    if (action === "com.dreadheadhippy.ampdeck.previous" || action === "com.dreadheadhippy.ampdeck.next") {
         setTimeout(function() {
             if (buttonHoldState[ctx] && !buttonHoldState[ctx].didSeek) {
                 buttonHoldState[ctx].didSeek = true;
@@ -385,12 +385,12 @@ function onKeyUp(data) {
     if (hs && hs.seekInterval) clearInterval(hs.seekInterval);
 
     if (!hs || !hs.didSeek) {
-        if (action === "com.rackemrack.ampdeck.album-art" || action === "com.rackemrack.ampdeck.play-pause") togglePlayPause();
-        else if (action === "com.rackemrack.ampdeck.previous") skipPrevious();
-        else if (action === "com.rackemrack.ampdeck.next") skipNext();
-        else if (action === "com.rackemrack.ampdeck.shuffle") toggleShuffle();
-        else if (action === "com.rackemrack.ampdeck.repeat") cycleRepeat();
-        else if (action === "com.rackemrack.ampdeck.rating") cycleRating(ctx);
+        if (action === "com.dreadheadhippy.ampdeck.album-art" || action === "com.dreadheadhippy.ampdeck.play-pause") togglePlayPause();
+        else if (action === "com.dreadheadhippy.ampdeck.previous") skipPrevious();
+        else if (action === "com.dreadheadhippy.ampdeck.next") skipNext();
+        else if (action === "com.dreadheadhippy.ampdeck.shuffle") toggleShuffle();
+        else if (action === "com.dreadheadhippy.ampdeck.repeat") cycleRepeat();
+        else if (action === "com.dreadheadhippy.ampdeck.rating") cycleRating(ctx);
     }
     delete buttonHoldState[ctx];
 }
@@ -1286,14 +1286,14 @@ function fetchAlbumArt(thumbPath) {
 function updateAllDisplays() {
     for (var ctx in actions) {
         var action = actions[ctx].action;
-        if (action === "com.rackemrack.ampdeck.album-art") updateAlbumArtButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.strip") updateStripDisplay(ctx);
-        else if (action === "com.rackemrack.ampdeck.play-pause") updatePlayPauseButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.info") updateInfoButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.time") updateTimeButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.rating") updateRatingButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.shuffle") updateShuffleButton(ctx);
-        else if (action === "com.rackemrack.ampdeck.repeat") updateRepeatButton(ctx);
+        if (action === "com.dreadheadhippy.ampdeck.album-art") updateAlbumArtButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.strip") updateStripDisplay(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.play-pause") updatePlayPauseButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.info") updateInfoButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.time") updateTimeButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.rating") updateRatingButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.shuffle") updateShuffleButton(ctx);
+        else if (action === "com.dreadheadhippy.ampdeck.repeat") updateRepeatButton(ctx);
     }
 }
 
@@ -1671,7 +1671,7 @@ function updateStripDisplay(ctx) {
     if (lastLayoutState[ctx] !== layoutKey) {
         lastLayoutState[ctx] = layoutKey;
         setFeedbackLayout(ctx, {
-            "id": "com.rackemrack.ampdeck.layout",
+            "id": "com.dreadheadhippy.ampdeck.layout",
             "items": [
                 { "key": "label", "type": "text", "rect": [0, 10, 200, labelSize + 4],
                   "font": { "size": labelSize, "weight": 700 },
@@ -1802,7 +1802,7 @@ function renderStripOverlay(ctx, ov, settings) {
         lastLayoutState[ctx] = overlayKey;
 
         setFeedbackLayout(ctx, {
-            "id": "com.rackemrack.ampdeck.layout",
+            "id": "com.dreadheadhippy.ampdeck.layout",
             "items": [
                 { "key": "label", "type": "text", "rect": [0, 10, 200, labelSize + 4],
                   "font": { "size": labelSize, "weight": 700 },

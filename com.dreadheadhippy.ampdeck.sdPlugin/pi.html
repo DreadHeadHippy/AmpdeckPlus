@@ -217,7 +217,7 @@
             const actionUUID = actionInfo.action;
             
             // Show rating settings only for rating button
-            if (actionUUID === 'com.rackemrack.ampdeck.rating') {
+            if (actionUUID === 'com.dreadheadhippy.ampdeck.rating') {
                 document.getElementById('ratingSettings').style.display = 'block';
                 document.getElementById('ratingDisplay').value = settings.ratingDisplay || 'stars';
                 document.getElementById('ratingFontSize').value = settings.ratingFontSize || '48';
@@ -315,7 +315,7 @@
             };
             
             // Add rating-specific settings if rating button
-            if (actionInfo && actionInfo.action === 'com.rackemrack.ampdeck.rating') {
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeck.rating') {
                 settings.ratingDisplay = document.getElementById('ratingDisplay').value;
                 settings.ratingFontSize = document.getElementById('ratingFontSize').value;
                 settings.ratingMode = document.getElementById('ratingMode').value;
@@ -364,7 +364,7 @@
 
             try {
                 const response = await fetch(playerUrl + '/player/timeline/poll?wait=0&commandID=1', {
-                    headers: { 'X-Plex-Client-Identifier': 'com.rackemrack.ampdeck' }
+                    headers: { 'X-Plex-Client-Identifier': 'com.dreadheadhippy.ampdeck' }
                 });
 
                 if (!response.ok) throw new Error('HTTP ' + response.status);
