@@ -1,8 +1,8 @@
 # Ampdeck+ v2.0
 
 <p align="center">
-  <strong>The <u>unofficial</u> Plexamp plugin for Stream Deck</strong><br>
-  <em>Ampdeck+ v2.0.0 is the first public release. Now with modular architecture, automatic reconnection, and production-ready code quality</em>
+  <strong>The <em><strong>unofficial</strong></em> Plexamp plugin for Stream Deck</strong><br>
+  <em>Ampdeck+ v2.0.0 is the first public release. Now with modular architecture, automatic reconnection, and clean code</em>
 </p>
 
 Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, playback time, and rate your tracks on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
