@@ -1,3 +1,13 @@
+> **⚠️ Project Moved — No Further Updates Here**
+>
+> This repository is no longer maintained.  
+> Development has moved to **[Ampdeck+](https://github.com/DreadHeadHippy/AmpdeckPlus)**.
+>
+> Please update your bookmarks and switch to the new repo:  
+> **https://github.com/DreadHeadHippy/AmpdeckPlus**
+
+---
+
 # Ampdeck+ v2.0
 
 <p align="center">
