@@ -12,7 +12,7 @@
 - **Animated seek buttons** - Previous/Next buttons feature smooth directional animation during hold-to-seek
   - Arrows move in the direction they face (Previous left, Next right)
   - Pac-Man style wrapping: arrows seamlessly travel through tile edges
-  - 20 pixels per frame travel speed at 200ms intervals
+  - 30 pixels per frame travel speed at 500ms intervals
   - Tight wrap rendering shows arrows entering opposite edge while exiting
 - **Canvas-rendered navigation** - Next/Previous buttons dynamically rendered with accent colors from album art
 - **Configurable icon sizes** - Four size presets for navigation buttons (24px, 32px, 40px, 48px)
@@ -49,7 +49,10 @@
 
 ### 🐛 Bug Fixes
 - **Rating bug fixed** - Changed `>=` to `===` comparison for proper rating cache handling
-- **Hold-to-seek fixed** - Continuous seeking now works across full track length without stopping
+- **Hold-to-seek fixed** - Continuous seeking now works indefinitely, even when Stream Deck is minimized to tray
+  - Increased seek interval to 500ms to prevent request queue overflow
+  - Removed artificial throttling that caused deadlocks in tray mode
+  - Seeking continues smoothly regardless of Stream Deck window state
 - **Touch strip restored** - Tap-anywhere functionality from v1.0 properly restored
 
 ### 🛠️ Developer Experience
@@ -61,9 +64,9 @@
 
 ### 📦 Technical Details
 - **12 modules** across 4 directories (core, plex, ui, utils)
-- **Plugin size** - 188.5 KiB bundled (increased from 184 KiB with animation features)
+- **Plugin size** - 100.3 KiB bundled
 - **Clean codebase** - No unused variables, proper async/await, modern patterns
-- **Animation system** - Frame-based tracking at 200ms intervals synchronized with seek operations
+- **Animation system** - Frame-based tracking at 500ms intervals synchronized with seek operations
 
 ### 🎯 Architecture Modules
 - `core/connectionManager.js` - WebSocket with auto-reconnect

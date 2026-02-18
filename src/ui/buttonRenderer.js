@@ -447,7 +447,7 @@ export function renderPrevious(context, animationFrame = null) {
     // Calculate animation offset (starts at center, moves left, wraps from right)
     let offsetX = 0;
     if (animationFrame !== null) {
-        const speed = 20; // pixels per frame
+        const speed = 30; // pixels per frame (adjusted for 500ms interval)
         const wrapRange = (CANVAS.BUTTON_SIZE + iconSize) * 2; // full cycle range
         const traveled = animationFrame * speed;
         const shifted = traveled + wrapRange / 2; // shift cycle to start at center
@@ -518,7 +518,7 @@ export function renderNext(context, animationFrame = null) {
     // Calculate animation offset (starts at center, moves right, wraps from left)
     let offsetX = 0;
     if (animationFrame !== null) {
-        const speed = 20; // pixels per frame
+        const speed = 30; // pixels per frame (adjusted for 500ms interval)
         const wrapRange = (CANVAS.BUTTON_SIZE + iconSize) * 2; // full cycle range
         const traveled = animationFrame * speed;
         const shifted = traveled + wrapRange / 2; // shift cycle to start at center

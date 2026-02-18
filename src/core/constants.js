@@ -27,7 +27,7 @@ export const TIMING = {
     POLL_INTERVAL: 1000,           // Timeline poll rate (ms)
     RENDER_INTERVAL: 200,          // Display update rate (ms)
     HOLD_THRESHOLD: 400,           // Press duration for hold action (ms)
-    SEEK_INTERVAL: 200,            // Seek repeat rate when holding (ms)
+    SEEK_INTERVAL: 500,            // Seek repeat rate when holding (ms) - increased to prevent queue overflow when Stream Deck is in tray
     SEEK_AMOUNT: 10000,            // Seek distance per step (ms)
     RATING_SAVE_DELAY: 1500,      // Debounce delay for rating saves (ms)
     SCROLL_PAUSE: 2000,            // Pause before scrolling text (ms)

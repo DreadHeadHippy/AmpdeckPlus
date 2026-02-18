@@ -30,7 +30,7 @@
         POLL_INTERVAL: 1000,           // Timeline poll rate (ms)
         RENDER_INTERVAL: 200,          // Display update rate (ms)
         HOLD_THRESHOLD: 400,           // Press duration for hold action (ms)
-        SEEK_INTERVAL: 200,            // Seek repeat rate when holding (ms)
+        SEEK_INTERVAL: 500,            // Seek repeat rate when holding (ms) - increased to prevent queue overflow when Stream Deck is in tray
         SEEK_AMOUNT: 10000,            // Seek distance per step (ms)
         RECONNECT_DELAY: 3000,         // WebSocket reconnect delay (ms)
         RECONNECT_MAX_DELAY: 30000     // Maximum reconnect delay (ms)
@@ -1799,7 +1799,7 @@
         // Calculate animation offset (starts at center, moves left, wraps from right)
         let offsetX = 0;
         if (animationFrame !== null) {
-            const speed = 20; // pixels per frame
+            const speed = 30; // pixels per frame (adjusted for 500ms interval)
             const wrapRange = (CANVAS.BUTTON_SIZE + iconSize) * 2; // full cycle range
             const traveled = animationFrame * speed;
             const shifted = traveled + wrapRange / 2; // shift cycle to start at center
@@ -1870,7 +1870,7 @@
         // Calculate animation offset (starts at center, moves right, wraps from left)
         let offsetX = 0;
         if (animationFrame !== null) {
-            const speed = 20; // pixels per frame
+            const speed = 30; // pixels per frame (adjusted for 500ms interval)
             const wrapRange = (CANVAS.BUTTON_SIZE + iconSize) * 2; // full cycle range
             const traveled = animationFrame * speed;
             const shifted = traveled + wrapRange / 2; // shift cycle to start at center
