@@ -14,7 +14,6 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ---
 
 ![Release](https://img.shields.io/github/v/release/DreadHeadHippy/AmpdeckPlus)
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Status](https://img.shields.io/badge/status-actively%20maintained-brightgreen)
 ![Downloads](https://img.shields.io/github/downloads/DreadHeadHippy/AmpdeckPlus/total)
 ![Last Commit](https://img.shields.io/github/last-commit/DreadHeadHippy/AmpdeckPlus)
