@@ -66,10 +66,17 @@ class PlexConnection {
 
         logger.debug(`Player command: ${path}`);
 
+        // Create AbortController with 1 second timeout to prevent hanging connections
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1000);
+
         try {
             const response = await fetch(url, {
-                headers: this.createHeaders(false)
+                headers: this.createHeaders(false),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -78,6 +85,7 @@ class PlexConnection {
             logger.debug(`Player command success: ${path}`);
             return response;
         } catch (error) {
+            clearTimeout(timeoutId);
             logger.warn(`Player command failed (${path}): ${error.message}, falling back to server`);
             return this.serverCommand(path, extraParams);
         }
@@ -109,10 +117,17 @@ class PlexConnection {
 
         logger.debug(`Server command: ${path}`);
 
+        // Create AbortController with 2 second timeout for server requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
         try {
             const response = await fetch(url, {
-                headers: this.createHeaders(true)
+                headers: this.createHeaders(true),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -121,6 +136,7 @@ class PlexConnection {
             logger.debug(`Server command success: ${path}`);
             return response;
         } catch (error) {
+            clearTimeout(timeoutId);
             logger.error(`Server command failed (${path}): ${error.message}`);
             throw error;
         }

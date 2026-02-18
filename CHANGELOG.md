@@ -50,9 +50,11 @@
 ### 🐛 Bug Fixes
 - **Rating bug fixed** - Changed `>=` to `===` comparison for proper rating cache handling
 - **Hold-to-seek fixed** - Continuous seeking now works indefinitely, even when Stream Deck is minimized to tray
-  - Increased seek interval to 500ms to prevent request queue overflow
-  - Removed artificial throttling that caused deadlocks in tray mode
-  - Seeking continues smoothly regardless of Stream Deck window state
+  - Rewrote seek logic to use sequential/recursive approach instead of parallel intervals
+  - Each seek waits for the previous one to complete before starting the next
+  - Added 1-second AbortController timeout to prevent hanging connections
+  - Animation synchronized with seek timing for intuitive feedback (faster seeks = faster animation)
+  - Completely eliminates browser connection pool exhaustion
 - **Touch strip restored** - Tap-anywhere functionality from v1.0 properly restored
 
 ### 🛠️ Developer Experience

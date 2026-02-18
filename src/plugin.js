@@ -95,7 +95,8 @@ function onWillDisappear(data) {
     
     // Clean up hold state
     if (state.buttonHoldState[context]) {
-        clearInterval(state.buttonHoldState[context].seekInterval);
+        // Set isHolding to false to stop recursive seek
+        state.buttonHoldState[context].isHolding = false;
         delete state.buttonHoldState[context];
     }
     
@@ -146,8 +147,8 @@ function onKeyDown(data) {
     state.buttonHoldState[context] = {
         pressTime: Date.now(),
         action: action,
-        seekInterval: null,
-        didSeek: false
+        didSeek: false,
+        isHolding: false
     };
 
     // Start hold-to-seek timer for prev/next
@@ -156,59 +157,66 @@ function onKeyDown(data) {
             const holdState = state.buttonHoldState[context];
             if (holdState && !holdState.didSeek) {
                 holdState.didSeek = true;
+                holdState.isHolding = true;
                 holdState.animationFrame = 0;
                 const direction = action === ACTIONS.PREVIOUS ? -1 : 1;
                 
                 // Track target position locally to avoid stale state.currentPosition
                 holdState.targetPosition = state.currentPosition;
                 
-                // Perform first seek
-                holdState.targetPosition += direction * TIMING.SEEK_AMOUNT;
-                playbackController.seekTo(Math.max(0, Math.min(holdState.targetPosition, state.trackDuration)));
+                // Recursive seek function - waits for each seek to complete before the next
+                const performSeek = async () => {
+                    const hs = state.buttonHoldState[context];
+                    if (!hs || !hs.isHolding) return; // Button was released
+                    
+                    // Increment animation frame
+                    hs.animationFrame = (hs.animationFrame || 0) + 1;
+                    
+                    // Update button with animation
+                    if (action === ACTIONS.PREVIOUS) {
+                        buttonRenderer.renderPrevious(context, hs.animationFrame);
+                    } else {
+                        buttonRenderer.renderNext(context, hs.animationFrame);
+                    }
+                    
+                    // Increment target position
+                    hs.targetPosition += direction * TIMING.SEEK_AMOUNT;
+                    
+                    // Clamp to valid range
+                    const clampedPos = Math.max(0, Math.min(hs.targetPosition, state.trackDuration));
+                    
+                    // Check if we hit a boundary
+                    if (clampedPos !== hs.targetPosition) {
+                        // Hit boundary, stop seeking
+                        hs.isHolding = false;
+                        if (action === ACTIONS.PREVIOUS) {
+                            buttonRenderer.renderPrevious(context);
+                        } else {
+                            buttonRenderer.renderNext(context);
+                        }
+                        return;
+                    }
+                    
+                    // Perform the seek
+                    try {
+                        await playbackController.seekTo(clampedPos);
+                    } catch (error) {
+                        // Seek failed, but continue trying
+                    }
+                    
+                    // Wait before next seek
+                    setTimeout(() => performSeek(), TIMING.SEEK_INTERVAL);
+                };
                 
-                // Animate button
+                // Initial button animation
                 if (action === ACTIONS.PREVIOUS) {
                     buttonRenderer.renderPrevious(context, 0);
                 } else {
                     buttonRenderer.renderNext(context, 0);
                 }
                 
-                // Continue seeking while held  
-                holdState.seekInterval = setInterval(() => {
-                    const hs = state.buttonHoldState[context];
-                    if (hs && hs.targetPosition !== undefined) {
-                        // Increment animation frame
-                        hs.animationFrame = (hs.animationFrame || 0) + 1;
-                        
-                        // Update button with animation
-                        if (action === ACTIONS.PREVIOUS) {
-                            buttonRenderer.renderPrevious(context, hs.animationFrame);
-                        } else {
-                            buttonRenderer.renderNext(context, hs.animationFrame);
-                        }
-                        
-                        // Increment target position
-                        hs.targetPosition += direction * TIMING.SEEK_AMOUNT;
-                        
-                        // Clamp to valid range
-                        const clampedPos = Math.max(0, Math.min(hs.targetPosition, state.trackDuration));
-                        
-                        // Only seek if we're not at a boundary
-                        if (clampedPos === hs.targetPosition) {
-                            playbackController.seekTo(clampedPos);
-                        } else {
-                            // Hit boundary, stop seeking
-                            clearInterval(hs.seekInterval);
-                            hs.seekInterval = null;
-                            // Reset button to normal state
-                            if (action === ACTIONS.PREVIOUS) {
-                                buttonRenderer.renderPrevious(context);
-                            } else {
-                                buttonRenderer.renderNext(context);
-                            }
-                        }
-                    }
-                }, TIMING.SEEK_INTERVAL);
+                // Start seeking
+                performSeek();
             }
         }, TIMING.HOLD_THRESHOLD);
     }
@@ -220,9 +228,9 @@ function onKeyUp(data) {
     
     if (!holdState) return;
     
-    // Stop seeking interval
-    if (holdState.seekInterval) {
-        clearInterval(holdState.seekInterval);
+    // Stop seeking by setting flag (recursive function checks this)
+    if (holdState.isHolding) {
+        holdState.isHolding = false;
     }
     
     // If we were seeking, don't execute the button action
