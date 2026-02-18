@@ -1,0 +1,16 @@
+{
+    "id": "com.dreadheadhippy.ampdeckplus.layout",
+    "items": [
+        {
+            "key": "displayText",
+            "type": "text",
+            "rect": [0, 20, 200, 60],
+            "font": {
+                "size": 16,
+                "weight": 600
+            },
+            "color": "#FFFFFF",
+            "alignment": "center"
+        }
+    ]
+}

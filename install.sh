@@ -1,9 +1,9 @@
 #!/bin/bash
 
 echo "============================================="
-echo " Ampdeck v1.3.1 - Stream Deck Plugin"
+echo " Ampdeck+ v2.0.0 - Stream Deck Plugin"
 echo " The Unofficial Plexamp Controller"
-echo "============================================="
+echo "=============================================" 
 echo ""
 
 # Check if Stream Deck is running
@@ -19,14 +19,14 @@ if pgrep -x "Stream Deck" > /dev/null 2>&1; then
 fi
 
 # Set paths
-PLUGIN_DIR="$HOME/Library/Application Support/com.elgato.StreamDeck/Plugins/com.dreadheadhippy.ampdeck.sdPlugin"
+PLUGIN_DIR="$HOME/Library/Application Support/com.elgato.StreamDeck/Plugins/com.dreadheadhippy.ampdeckplus.sdPlugin"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SOURCE_DIR="$SCRIPT_DIR/com.dreadheadhippy.ampdeck.sdPlugin"
+SOURCE_DIR="$SCRIPT_DIR/com.dreadheadhippy.ampdeckplus.sdPlugin"
 
 # Check source exists
 if [ ! -d "$SOURCE_DIR" ]; then
     echo "ERROR: Plugin folder not found!"
-    echo "Make sure com.dreadheadhippy.ampdeck.sdPlugin is in the same folder as this script."
+    echo "Make sure com.dreadheadhippy.ampdeckplus.sdPlugin is in the same folder as this script."
     echo ""
     exit 1
 fi
@@ -51,7 +51,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "1. Start the Stream Deck application"
     echo ""
-    echo "2. Find \"Ampdeck\" in the actions list on the right"
+    echo "2. Find \"Ampdeck+\" in the actions list on the right"
     echo ""
     echo "3. Drag \"Album Art\" to any button"
     echo ""

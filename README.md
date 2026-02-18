@@ -1,42 +1,89 @@
-# Ampdeck
+# Ampdeck+ v2.0
 
-**The unofficial Plexamp plugin for Stream Deck**
+<p align="center">
+  <strong>The <u>unofficial</u> Plexamp plugin for Stream Deck</strong><br>
+  <em>Ampdeck+ v2.0.0 is the first public release. Now with modular architecture, automatic reconnection, and production-ready code quality</em>
+</p>
 
-![Ampdeck on Stream Deck+](her0.png)
+Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, playback time, and rate your tracks on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
 
-![Release](https://img.shields.io/github/v/release/DreadHeadHippy/ampdeck)
+<p align="center">
+  <img src="assets/streamdeck-overview.png" alt="Ampdeck+ on Stream Deck+" width="700">
+</p>
+
+---
+
+![Release](https://img.shields.io/github/v/release/DreadHeadHippy/AmpdeckPlus)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Status](https://img.shields.io/badge/status-actively%20maintained-brightgreen)
-![Downloads](https://img.shields.io/github/downloads/DreadHeadHippy/ampdeck/total)
-![Last Commit](https://img.shields.io/github/last-commit/DreadHeadHippy/ampdeck)
-[![Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/rackemrack)
+![Downloads](https://img.shields.io/github/downloads/DreadHeadHippy/AmpdeckPlus/total)
+![Last Commit](https://img.shields.io/github/last-commit/DreadHeadHippy/AmpdeckPlus)
+[![Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/dreadheadhippy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-Ampdeck brings Plexamp to your Stream Deck. See your album art, track info, and playback time on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
+## ⚡ What's New in v2.0
+
+- **🏗️ Professional Architecture** - Complete modular rewrite with 12 specialized ES6 modules
+- **🎬 Animated Seek Buttons** - Previous/Next buttons feature smooth directional animation during hold-to-seek with wrapping effect
+- **🎨 Canvas-Rendered Navigation** - Next/Previous buttons rendered with dynamic accent colors that adapt to album art
+- **🔧 Configurable Icon Sizes** - Choose from 4 icon size presets (24-48px) for navigation buttons
+- **😴 Paused State Dimming** - All buttons automatically turn gray when playback is paused for clear visual feedback
+- **📐 Symmetrical Spacing** - Professional layout with equal gaps throughout the UI: touch strip, Track Info, Time Elapsed, and overlays
+- **📝 Enlarged Text** - Dramatically improved readability: Time display (42/40px), Track Info (36/26/24/42px), overlays (24/44px)
+- **⭐ Enhanced Rating System** - Half-star increments, wrap-around from 5 to 0, and debounced saves for smooth server communication
+- **👆 Touch Strip Tap-to-Pause** - Tap anywhere on the strip to play/pause
+- **🎵 Album Art Interaction** - Tap album art tile to play/pause with gray overlay visual feedback
+- **🔄 Automatic Reconnection** - Graceful WebSocket recovery if Stream Deck disconnects
+- **✅ Input Validation** - Comprehensive validation for all user settings
+- **📊 Centralized State** - Clean state management replacing 30+ scattered globals
+- **🎯 Zero ESLint Warnings** - Production-quality code passing all checks
+- **🛡️ Advanced Error Handling** - Graceful fallbacks and detailed logging system
+- **📦 Modern Build System** - Rollup bundler with ES6+ features
+
+---
 
 ## Features
 
-- **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause.
-- **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text.
+- **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause. When playback is paused, the album art displays with a gray overlay.
+- **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability.
 - **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
-- **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars.
-- **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode.
-- **Touch Strip Controls** — Tap to play/pause with visual feedback overlays showing the action taken.
+- **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
+- **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star or half star). Wraps from 5 stars back to 0 for quick clearing.
+- **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
 - **Play / Pause** — Dedicated button with instant visual feedback.
-- **Previous / Next** — Tap to skip tracks. Hold to seek forward or backward.
-- **Shuffle** — Toggle shuffle on/off with visual state indicator.
-- **Repeat** — Cycle through repeat modes: Off → All → One.
-- **Track Info** — Audio codec, bitrate, and track number at a glance.
-- **Time Elapsed** — Large elapsed/total time display with its own progress bar.
-- **Dynamic Colors** — Progress bar and accent colors adapt to the current album art, or lock to orange if you prefer.
+- **Previous / Next** — Tap to skip tracks. Hold for 400ms to activate seek mode with **animated directional arrows** that smoothly travel across the button and wrap around Pac-Man style. Previous arrows move left, Next arrows move right. Configurable icon size (24-48px) with four preset options.
+- **Paused State Visual Feedback** — When playback is paused, all buttons turn gray automatically: Album Art overlay, Navigation buttons, and all other action tiles provide clear visual indication.
+- **Shuffle** — Toggle shuffle on/off with visual state indicator. Dims when paused.
+- **Repeat** — Cycle through repeat modes: Off → All → One. Dims when paused.
+- **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing.
+- **Time Elapsed** — Large elapsed/total time display (42px/40px fonts) with its own progress bar and symmetrical spacing.
+- **Dynamic Colors** — Progress bar and accent colors adapt to the current album art, or lock to orange if you prefer. Canvas-rendered navigation buttons use dynamic accent colors when active.
 - **Configurable Text Colors** — Choose from White, Light Gray, Orange, Amber, or Black to match your setup.
 - **Direct Player Communication** — Commands go straight to Plexamp's local API for fast, reliable playback control with automatic server fallback.
+- **Hold-to-Seek with Local Position Tracking** — Continuous seeking without API staleness. The plugin tracks position locally and accumulates seeks independently for seamless navigation through long tracks.
+
+## Screenshots
+
+### Available Actions
+
+<p align="center">
+  <img src="assets/key-actions.png" alt="Ampdeck+ Key Actions" width="300">
+  <br>
+  <em>Key Actions: Album Art, Play/Pause, Previous, Next, Shuffle, Repeat, Rating, Track Info, Time Elapsed</em>
+</p>
+
+<p align="center">
+  <img src="assets/dial-actions.png" alt="Ampdeck+ Dial Actions" width="300">
+  <br>
+  <em>Dial Actions: Now Playing Strip with configurable display modes and dial controls</em>
+</p>
 
 ## Compatibility
 
-Ampdeck works on **any Stream Deck model** — the button actions (Album Art, Play/Pause, Previous, Next, Shuffle, Repeat, Track Info, Time Elapsed) work on every device with LCD keys. The Now Playing Strip with dials and progress bar is exclusive to the **Stream Deck+**.
+Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, Play/Pause, Previous, Next, Shuffle, Repeat, Track Info, Time Elapsed) work on every device with LCD keys. The Now Playing Strip with dials and progress bar is exclusive to the **Stream Deck+**.
 
 | Feature | Stream Deck / XL / MK.2 / Mini / Neo | Stream Deck+ |
 |---------|:-------------------------------------:|:------------:|
@@ -56,33 +103,50 @@ Ampdeck works on **any Stream Deck model** — the button actions (Album Art, Pl
 
 - Any [Stream Deck](https://www.elgato.com/stream-deck) model (Stream Deck+ recommended for the full experience)
 - [Plexamp](https://www.plex.tv/plexamp/) running on the same network
-- A [Plex Media Server](https://www.plex.tv/media-server-downloads/) with your music library
+- Access to a [Plex Media Server](https://www.plex.tv/media-server-downloads/) with a music library (you don't need to own the server)
 
 ## Installation
 
-1. Download **`com.dreadheadhippy.ampdeck.streamDeckPlugin`** from the [Releases](https://github.com/DreadHeadHippy/ampdeck/releases/tag/v1.3.1) page
-2. Double-click the file
+> **⚠️ Important:** If you have **Ampdeck** installed, please **uninstall it first** before installing **Ampdeck+**.
+
+1. Close Stream Deck completely (right-click system tray icon → Quit)
+2. Download **`com.dreadheadhippy.ampdeckplus.streamDeckPlugin`** from the [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases) page
+3. Double-click the file to install
 
 That's it. Stream Deck handles the rest.
 
 ## Updating
 
-1. Download the latest **`install.bat`** from the [Releases](https://github.com/DreadHeadHippy/ampdeck/releases/tag/v1.3.1) page
-2. Double-click the file
+**Windows:**
+1. Close Stream Deck completely (right-click system tray icon → Quit)
+2. Download `install.bat` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
+3. Double-click `install.bat`
 
-Stream Deck automatically replaces the old version. Your settings are preserved.
+**macOS:**
+1. Close Stream Deck completely (menu bar icon → Quit)
+2. Download `install.sh` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
+3. Run `chmod +x install.sh && ./install.sh`
+
+The install scripts will update the plugin while preserving your settings.
 
 ## Setup
 
-1. Find **Ampdeck** in the actions list on the right side of the Stream Deck app
-2. Drag **Album Art** to any button
-3. Drag **Now Playing Strip** to all 4 dials
-4. Optionally drag **Play/Pause**, **Previous**, **Next**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
-5. Click any Ampdeck action and configure:
+1. Find **Ampdeck+** in the actions list on the right side of the Stream Deck app
+
+   <img src="assets/plugin-menu.png" alt="Ampdeck+ in plugins list" width="250">
+
+2. Expand to see all available actions:
+
+   <img src="assets/actions-list.png" alt="Ampdeck+ actions" width="250">
+
+3. Drag **Album Art** to any button
+4. Drag **Now Playing Strip** to all 4 dials
+5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
+6. Click any Ampdeck+ action and configure:
 
 ### Connection Settings
 
-Ampdeck connects to both your local Plexamp player and your Plex server:
+Ampdeck+ connects to both your local Plexamp player and your Plex server:
 
 | Setting | Description |
 |---------|-------------|
@@ -143,11 +207,11 @@ For more details, see the [Plex support article](https://support.plex.tv/article
 
 ### Debug Logging
 
-If something isn't working, enable **Debug Logging** in the Advanced section of any Ampdeck action's settings. Then open the Stream Deck remote debugger at `http://localhost:23654` in your browser to see detailed logs. Plex tokens are automatically masked in log output, so it's safe to share logs when reporting issues.
+If something isn't working, enable **Debug Logging** in the Advanced section of any Ampdeck+ action's settings. Then open the Stream Deck remote debugger at `http://localhost:23654` in your browser to see detailed logs. Plex tokens are automatically masked in log output, so it's safe to share logs when reporting issues.
 
 ## Manual Installation
 
-Copy the `com.dreadheadhippy.ampdeck.sdPlugin` folder to:
+Copy the `com.dreadheadhippy.ampdeckplus.sdPlugin` folder to:
 
 **Windows:**
 ```
@@ -161,9 +225,120 @@ Copy the `com.dreadheadhippy.ampdeck.sdPlugin` folder to:
 
 Then restart Stream Deck.
 
+---
+
+## 🛠️ Development & Architecture
+
+### Project Structure
+```
+src/
+├── plugin.js              # Main entry point & event orchestration
+├── core/
+│   ├── constants.js       # Application constants
+│   ├── connectionManager.js # WebSocket with auto-reconnect
+│   └── stateManager.js    # Centralized state container
+├── plex/
+│   ├── plexConnection.js  # Plex API communication
+│   ├── playbackController.js # Playback commands
+│   └── metadataCache.js   # Metadata & rating cache
+├── ui/
+│   ├── buttonRenderer.js  # Canvas button rendering
+│   └── layoutManager.js   # Touch strip layouts
+└── utils/
+    ├── validator.js       # Input validation
+    ├── logger.js          # Logging system
+    └── helpers.js         # Utility functions
+```
+
+### Build Commands
+```bash
+# Install dependencies
+npm install
+
+# Build plugin (compile modules → single file)
+npm run build
+
+# Build + watch for changes
+npm run dev
+
+# Lint source code
+npm run lint
+
+# Build + package for distribution
+npm run pack
+```
+
+### Technology Stack
+- **ES6+ Modules** - Modern JavaScript with import/export
+- **Rollup** - Module bundler for production build
+- **ESLint 10** - Flat config format, zero warnings
+- **Stream Deck SDK v2** - Latest SDK features
+- **Web Workers** - Non-blocking polling and rendering
+
+### Architecture Highlights
+
+#### v2.0 Improvements Over v1.0
+| Aspect | v1.0 | v2.0 |
+|--------|------|------|
+| Structure | Single 1934-line file | 12 modular files |
+| State Management | 30+ global variables | Centralized StateManager |
+| Error Handling | Basic try/catch | Comprehensive with fallbacks |
+| Reconnection | None (dead on disconnect) | Automatic with backoff |
+| Input Validation | None | Comprehensive validator module |
+| Code Quality | Functional | Zero ESLint warnings |
+| Maintainability | Difficult | Excellent |
+
+#### Key Features
+
+**Automatic Reconnection**
+If the WebSocket connection to Stream Deck drops unexpectedly, the plugin automatically attempts to reconnect with exponential backoff (this only happens when disconnected - normal operation is unaffected):
+- 1st attempt: 3 seconds
+- 2nd attempt: 6 seconds
+- 3rd attempt: 12 seconds
+- Max delay: 30 seconds
+
+Note: This is separate from the regular polling (1 second for playback data, 200ms for display updates) which runs continuously while connected.
+
+**Hold-to-Seek**
+Press and hold the Previous or Next buttons for 400ms to switch from track skipping to seeking. The plugin will seek 10 seconds per step while you hold the button.
+
+**Rating Cache**
+The plugin intelligently caches your rating changes to handle Plex server metadata delays. If you rapidly adjust ratings, the UI stays responsive while the server catches up.
+
+**Dynamic Color Extraction**
+Album art is analyzed to extract the dominant color, which is then used as an accent color throughout the UI (unless disabled in settings).
+
+### Contributing
+
+Contributions are welcome! This is a professionally structured codebase designed for collaboration.
+
+**Code Quality Standards:**
+- Modular design - New features should be self-contained modules  
+- Input validation - Always validate user input
+- Error handling - Use try/catch and provide meaningful errors
+- Logging - Use the logger module, not console.log
+- ESLint clean - Code must pass `npm run lint` with zero warnings
+
+**Development Workflow:**
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes in the `src/` directory
+4. Test with `npm run dev` (watches for changes)
+5. Lint with `npm run lint`
+6. Commit (`git commit -m 'Add amazing feature'`)
+7. Push (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+---
+
+## Contributors
+
+- [@rackemrack](https://github.com/rackemrack) - Original Ampdeck creator
+- [@DreadHeadHippy](https://github.com/DreadHeadHippy) - v2.0 rewrite, modularization, and ongoing development
+
 ## Support
 
-If Ampdeck is useful to you, consider [buying me a coffee](https://ko-fi.com/rackemrack). It's totally optional; The plugin is free and always will be.
+If Ampdeck+ is useful to you, consider [buying me a coffee](https://ko-fi.com/dreadheadhippy). Donations are always appreciated, but never required.
 
 ## License
 

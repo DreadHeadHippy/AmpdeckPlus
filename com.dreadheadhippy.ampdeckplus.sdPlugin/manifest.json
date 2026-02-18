@@ -1,0 +1,178 @@
+{
+  "SDKVersion": 2,
+  "Author": "DreadHeadHippy",
+  "CodePath": "plugin.html",
+  "Description": "Now playing display and controls for Plexamp - Enhanced edition",
+  "Name": "Ampdeck+",
+  "Icon": "imgs/plugin-icon",
+  "URL": "https://github.com/DreadHeadHippy/Ampdeckplus",
+  "Version": "2.0.0.0",
+  "Category": "Ampdeck+",
+  "CategoryIcon": "imgs/category-icon",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    },
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.15"
+    }
+  ],
+  "Software": {
+    "MinimumVersion": "6.4"
+  },
+  "Actions": [
+    {
+      "Icon": "imgs/album-art-icon",
+      "Name": "Album Art",
+      "States": [
+        {
+          "Image": "imgs/default-album",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Displays album art from Plexamp. Press to play/pause.",
+      "UUID": "com.dreadheadhippy.ampdeckplus.album-art",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/strip-icon",
+      "Name": "Now Playing Strip",
+      "States": [
+        {
+          "Image": "imgs/strip-encoder-icon"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows now playing info on the touch strip with configurable dial controls",
+      "UUID": "com.dreadheadhippy.ampdeckplus.strip",
+      "Controllers": [
+        "Encoder"
+      ],
+      "Encoder": {
+        "layout": "layouts/now-playing.json",
+        "TriggerDescription": {
+          "Rotate": "Next / Previous or Volume",
+          "Push": "Play/Pause, Shuffle, or Repeat (configurable)",
+          "Touch": "Play / Pause"
+        }
+      },
+      "PropertyInspectorPath": "pi-strip.html"
+    },
+    {
+      "Icon": "imgs/play-pause-icon",
+      "Name": "Play / Pause",
+      "States": [
+        {
+          "Image": "imgs/play-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Toggle play/pause",
+      "UUID": "com.dreadheadhippy.ampdeckplus.play-pause",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/prev-icon",
+      "Name": "Previous",
+      "States": [
+        {
+          "Image": "imgs/prev-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Tap for previous track, hold to rewind",
+      "UUID": "com.dreadheadhippy.ampdeckplus.previous",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/next-icon",
+      "Name": "Next",
+      "States": [
+        {
+          "Image": "imgs/next-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Tap for next track, hold to fast forward",
+      "UUID": "com.dreadheadhippy.ampdeckplus.next",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/info-icon",
+      "Name": "Track Info",
+      "States": [
+        {
+          "Image": "imgs/info-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows track info: format, quality, track number",
+      "UUID": "com.dreadheadhippy.ampdeckplus.info",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/time-icon",
+      "Name": "Time Elapsed",
+      "States": [
+        {
+          "Image": "imgs/time-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows elapsed / total time with progress bar",
+      "UUID": "com.dreadheadhippy.ampdeckplus.time",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/rating-icon",
+      "Name": "Rating",
+      "States": [
+        {
+          "Image": "imgs/rating-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows current track rating. Tap to cycle ratings.",
+      "UUID": "com.dreadheadhippy.ampdeckplus.rating",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/shuffle-icon",
+      "Name": "Shuffle",
+      "States": [
+        {
+          "Image": "imgs/shuffle-default",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Toggle shuffle on/off",
+      "UUID": "com.dreadheadhippy.ampdeckplus.shuffle",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/repeat-icon",
+      "Name": "Repeat",
+      "States": [
+        {
+          "Image": "imgs/repeat-default",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Cycle repeat: Off → All → One",
+      "UUID": "com.dreadheadhippy.ampdeckplus.repeat",
+      "PropertyInspectorPath": "pi.html"
+    }
+  ],
+  "UUID": "com.dreadheadhippy.ampdeckplus"
+}

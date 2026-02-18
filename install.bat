@@ -1,6 +1,6 @@
 @echo off
 echo =============================================
-echo  Ampdeck v1.3.1 - Stream Deck Plugin
+echo  Ampdeck+ v2.0.0 - Stream Deck Plugin
 echo  The Unofficial Plexamp Controller
 echo =============================================
 echo.
@@ -20,8 +20,8 @@ if "%ERRORLEVEL%"=="0" (
 )
 
 :: Set the plugin directory
-set "PLUGIN_DIR=%APPDATA%\Elgato\StreamDeck\Plugins\com.dreadheadhippy.ampdeck.sdPlugin"
-set "SOURCE_DIR=%~dp0com.dreadheadhippy.ampdeck.sdPlugin"
+set "PLUGIN_DIR=%APPDATA%\Elgato\StreamDeck\Plugins\com.dreadheadhippy.ampdeckplus.sdPlugin"
+set "SOURCE_DIR=%~dp0com.dreadheadhippy.ampdeckplus.sdPlugin"
 
 :: Remove old installation if exists
 if exist "%PLUGIN_DIR%" (
@@ -43,7 +43,7 @@ if %ERRORLEVEL% EQU 0 (
     echo.
     echo 1. Start the Stream Deck application
     echo.
-    echo 2. Find "Ampdeck" in the actions list on the right
+    echo 2. Find "Ampdeck+" in the actions list on the right
     echo.
     echo 3. Drag "Album Art" to any button
     echo.
