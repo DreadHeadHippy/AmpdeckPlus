@@ -101,7 +101,7 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 ## Requirements
 
 - Any [Stream Deck](https://www.elgato.com/stream-deck) model (Stream Deck+ recommended for the full experience)
-- [Plexamp](https://www.plex.tv/plexamp/) running on the same network
+- [Plexamp](https://www.plex.tv/plexamp/) running on the same network or remotely
 - Access to a [Plex Media Server](https://www.plex.tv/media-server-downloads/) with a music library (you don't need to own the server)
 
 ## Installation
