@@ -1,4 +1,4 @@
-# Ampdeck+ v2.0
+<h1 align="center">Ampdeck+ v2.0</h1>
 
 <p align="center">
   <strong>The <em><strong>unofficial</strong></em> Plexamp plugin for Stream Deck</strong><br>
