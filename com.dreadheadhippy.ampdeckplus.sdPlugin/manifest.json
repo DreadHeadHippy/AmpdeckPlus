@@ -1,5 +1,5 @@
 {
-  "SDKVersion": 2,
+  "SDKVersion": 3,
   "Author": "DreadHeadHippy",
   "CodePath": "plugin.html",
   "Description": "Now playing display and controls for Plexamp - Enhanced edition",
@@ -20,7 +20,7 @@
     }
   ],
   "Software": {
-    "MinimumVersion": "6.4"
+    "MinimumVersion": "6.9"
   },
   "Actions": [
     {

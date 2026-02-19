@@ -307,26 +307,9 @@ The plugin intelligently caches your rating changes to handle Plex server metada
 **Dynamic Color Extraction**
 Album art is analyzed to extract the dominant color, which is then used as an accent color throughout the UI (unless disabled in settings).
 
-### Contributing
+## Contributing
 
-Contributions are welcome! This is a professionally structured codebase designed for collaboration.
-
-**Code Quality Standards:**
-- Modular design - New features should be self-contained modules  
-- Input validation - Always validate user input
-- Error handling - Use try/catch and provide meaningful errors
-- Logging - Use the logger module, not console.log
-- ESLint clean - Code must pass `npm run lint` with zero warnings
-
-**Development Workflow:**
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes in the `src/` directory
-4. Test with `npm run dev` (watches for changes)
-5. Lint with `npm run lint`
-6. Commit (`git commit -m 'Add amazing feature'`)
-7. Push (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to this project.
 
 ---
 
