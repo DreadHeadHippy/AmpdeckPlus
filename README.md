@@ -309,7 +309,7 @@ Album art is analyzed to extract the dominant color, which is then used as an ac
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to this project.
+Contributions are welcome! Please see the [Contributing Guidelines](https://github.com/DreadHeadHippy/AmpdeckPlus?tab=contributing-ov-file) for detailed information on how to contribute to this project.
 
 ---
 
