@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>The <em><strong>unofficial</strong></em> Plexamp plugin for Stream Deck</strong><br>
-  <em>Ampdeck+ v2.0.0 is the first public release. Now with modular architecture, automatic reconnection, and clean code</em>
+  <em>Ampdeck+ v2.0.1 - Now with time display toggle, just like Plexamp</em>
 </p>
 
 Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, playback time, and rate your tracks on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
@@ -58,7 +58,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Shuffle** — Toggle shuffle on/off with visual state indicator. Dims when paused.
 - **Repeat** — Cycle through repeat modes: Off → All → One. Dims when paused.
 - **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing.
-- **Time Elapsed** — Large elapsed/total time display (42px/40px fonts) with its own progress bar and symmetrical spacing.
+- **Time Elapsed** — Large elapsed/total time display (42px/40px fonts) with its own progress bar and symmetrical spacing. **Tap to toggle** between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp.
 - **Dynamic Colors** — Progress bar and accent colors adapt to the current album art, or lock to orange if you prefer. Canvas-rendered navigation buttons use dynamic accent colors when active.
 - **Configurable Text Colors** — Choose from White, Light Gray, Orange, Amber, or Black to match your setup.
 - **Direct Player Communication** — Commands go straight to Plexamp's local API for fast, reliable playback control with automatic server fallback.

@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.0';
+    const VERSION = '2.0.1';
 
     // Action identifiers
     const ACTIONS = {
@@ -375,6 +375,7 @@
             this.stripOverlays = {};         // context -> overlay state
             this.stripScrollState = {};      // context -> scroll state
             this.buttonHoldState = {};       // context -> hold state
+            this.timeDisplayMode = {};       // context -> 'elapsed' or 'remaining'
 
             // Workers
             this.pollWorker = null;
@@ -399,6 +400,7 @@
             delete this.stripOverlays[context];
             delete this.stripScrollState[context];
             delete this.buttonHoldState[context];
+            delete this.timeDisplayMode[context];
         }
 
         getAction(context) {
@@ -505,6 +507,17 @@
 
         getStripOverlay(context) {
             return this.stripOverlays[context];
+        }
+
+        // Time display mode
+        toggleTimeDisplayMode(context) {
+            const currentMode = this.timeDisplayMode[context] || 'elapsed';
+            this.timeDisplayMode[context] = currentMode === 'elapsed' ? 'remaining' : 'elapsed';
+            return this.timeDisplayMode[context];
+        }
+
+        getTimeDisplayMode(context) {
+            return this.timeDisplayMode[context] || 'elapsed';
         }
     }
 
@@ -1576,15 +1589,31 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // Current position
-            ctx.font = `bold ${timeSize}px sans-serif`;
-            ctx.fillStyle = textColor;
-            ctx.fillText(formatTime(state.currentPosition), 72, timeY);
+            // Check display mode
+            const displayMode = state.getTimeDisplayMode(context);
+            
+            if (displayMode === 'remaining') {
+                // Show elapsed / -remaining
+                const remaining = state.trackDuration - state.currentPosition;
+                ctx.font = `bold ${timeSize}px sans-serif`;
+                ctx.fillStyle = textColor;
+                ctx.fillText(formatTime(state.currentPosition), 72, timeY);
 
-            // Duration
-            ctx.font = `bold ${durationSize}px sans-serif`;
-            ctx.fillStyle = accentColor;
-            ctx.fillText('/ ' + formatTime(state.trackDuration), 72, durationY);
+                // Remaining time with minus sign
+                ctx.font = `bold ${durationSize}px sans-serif`;
+                ctx.fillStyle = accentColor;
+                ctx.fillText('/ -' + formatTime(remaining), 72, durationY);
+            } else {
+                // Show elapsed / total (default)
+                ctx.font = `bold ${timeSize}px sans-serif`;
+                ctx.fillStyle = textColor;
+                ctx.fillText(formatTime(state.currentPosition), 72, timeY);
+
+                // Total duration
+                ctx.font = `bold ${durationSize}px sans-serif`;
+                ctx.fillStyle = accentColor;
+                ctx.fillText('/ ' + formatTime(state.trackDuration), 72, durationY);
+            }
 
             // Progress bar background
             ctx.fillStyle = COLORS.DARK_GRAY;
@@ -2528,7 +2557,7 @@
                         // Perform the seek
                         try {
                             await playbackController.seekTo(clampedPos);
-                        } catch (error) {
+                        } catch {
                             // Seek failed, but continue trying
                         }
                         
@@ -2719,6 +2748,11 @@
                     playbackController.setRating(newRating);
                     state.ratingSaveTimer = null;
                 }, 2000);
+                break;
+            case ACTIONS.TIME:
+                // Toggle between elapsed and remaining time display
+                state.toggleTimeDisplayMode(context);
+                logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
                 break;
         }
         

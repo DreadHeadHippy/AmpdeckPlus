@@ -49,6 +49,7 @@ class StateManager {
         this.stripOverlays = {};         // context -> overlay state
         this.stripScrollState = {};      // context -> scroll state
         this.buttonHoldState = {};       // context -> hold state
+        this.timeDisplayMode = {};       // context -> 'elapsed' or 'remaining'
 
         // Workers
         this.pollWorker = null;
@@ -73,6 +74,7 @@ class StateManager {
         delete this.stripOverlays[context];
         delete this.stripScrollState[context];
         delete this.buttonHoldState[context];
+        delete this.timeDisplayMode[context];
     }
 
     getAction(context) {
@@ -179,6 +181,17 @@ class StateManager {
 
     getStripOverlay(context) {
         return this.stripOverlays[context];
+    }
+
+    // Time display mode
+    toggleTimeDisplayMode(context) {
+        const currentMode = this.timeDisplayMode[context] || 'elapsed';
+        this.timeDisplayMode[context] = currentMode === 'elapsed' ? 'remaining' : 'elapsed';
+        return this.timeDisplayMode[context];
+    }
+
+    getTimeDisplayMode(context) {
+        return this.timeDisplayMode[context] || 'elapsed';
     }
 }
 

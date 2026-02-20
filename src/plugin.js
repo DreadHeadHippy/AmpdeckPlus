@@ -200,7 +200,7 @@ function onKeyDown(data) {
                     // Perform the seek
                     try {
                         await playbackController.seekTo(clampedPos);
-                    } catch (error) {
+                    } catch {
                         // Seek failed, but continue trying
                     }
                     
@@ -391,6 +391,11 @@ async function handleButtonAction(action, context) {
                 playbackController.setRating(newRating);
                 state.ratingSaveTimer = null;
             }, 2000);
+            break;
+        case ACTIONS.TIME:
+            // Toggle between elapsed and remaining time display
+            state.toggleTimeDisplayMode(context);
+            logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
             break;
     }
     

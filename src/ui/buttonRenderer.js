@@ -208,15 +208,31 @@ export function renderTime(context) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Current position
-        ctx.font = `bold ${timeSize}px sans-serif`;
-        ctx.fillStyle = textColor;
-        ctx.fillText(formatTime(state.currentPosition), 72, timeY);
+        // Check display mode
+        const displayMode = state.getTimeDisplayMode(context);
+        
+        if (displayMode === 'remaining') {
+            // Show elapsed / -remaining
+            const remaining = state.trackDuration - state.currentPosition;
+            ctx.font = `bold ${timeSize}px sans-serif`;
+            ctx.fillStyle = textColor;
+            ctx.fillText(formatTime(state.currentPosition), 72, timeY);
 
-        // Duration
-        ctx.font = `bold ${durationSize}px sans-serif`;
-        ctx.fillStyle = accentColor;
-        ctx.fillText('/ ' + formatTime(state.trackDuration), 72, durationY);
+            // Remaining time with minus sign
+            ctx.font = `bold ${durationSize}px sans-serif`;
+            ctx.fillStyle = accentColor;
+            ctx.fillText('/ -' + formatTime(remaining), 72, durationY);
+        } else {
+            // Show elapsed / total (default)
+            ctx.font = `bold ${timeSize}px sans-serif`;
+            ctx.fillStyle = textColor;
+            ctx.fillText(formatTime(state.currentPosition), 72, timeY);
+
+            // Total duration
+            ctx.font = `bold ${durationSize}px sans-serif`;
+            ctx.fillStyle = accentColor;
+            ctx.fillText('/ ' + formatTime(state.trackDuration), 72, durationY);
+        }
 
         // Progress bar background
         ctx.fillStyle = COLORS.DARK_GRAY;

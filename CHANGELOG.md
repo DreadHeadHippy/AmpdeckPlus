@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.1] - 2026-02-20
+
+### ✨ New Features
+- **Time display toggle** - Time Elapsed button now toggles between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp
+  - Click/tap the Time Elapsed button to switch modes
+  - Shows `2:26 / 5:00` by default (elapsed / total)
+  - Shows `2:26 / -2:34` when toggled (elapsed / -remaining)
+  - State persists per button instance
+
 ## [2.0.0] - 2026-02-18
 
 ### 🏗️ Major Architecture Overhaul

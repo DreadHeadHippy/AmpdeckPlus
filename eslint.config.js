@@ -24,6 +24,7 @@ export default [
         Math: 'readonly',
         Date: 'readonly',
         Promise: 'readonly',
+        AbortController: 'readonly',
         AbortSignal: 'readonly',
         NodeList: 'readonly',
         URLSearchParams: 'readonly',
