@@ -23,9 +23,3 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
-
-# Personal messages/notes that shouldn't be in repo
-MESSAGE_TO_RACKEMRACK.md
-README.md.v1.backup
-plugin.js.backup
-RELEASE_NOTES_2.0.1.md
