@@ -9,6 +9,14 @@
   - Shows `2:26 / -2:34` when toggled (elapsed / -remaining)
   - State persists per button instance
 
+### 🐛 Bug Fixes
+- **Rating preservation on track skip** - Fixed issue where rating a track and immediately skipping to the next track would lose or misapply the rating
+  - Rating `ratingKey` now captured at button-press time, not when debounce fires
+  - Plex server always receives the correct rating for the intended track
+  - Stream Deck display no longer shows incorrect rating when debounce fires after a skip
+- **ESLint warnings** - Removed unused error variable in seek handler
+- **ESLint errors** - Added `AbortController` to global definitions
+
 ## [2.0.0] - 2026-02-18
 
 ### 🏗️ Major Architecture Overhaul

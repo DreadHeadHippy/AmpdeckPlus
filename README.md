@@ -24,6 +24,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ## ⚡ What's New in v2.0.1
 
 - **⏱️ Time Display Toggle** - Time Elapsed button now toggles between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp! Switch between `2:26 / 5:00` and `2:26 / -2:34`.
+- **🐛 Rating Fix** - Fixed rating preservation when skipping tracks. Rate a track and immediately skip—the rating is now correctly saved to the intended track in Plex, and the Stream Deck display shows the accurate rating for the new track.
 
 📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 

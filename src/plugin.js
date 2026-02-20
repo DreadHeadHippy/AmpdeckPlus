@@ -301,8 +301,10 @@ function onDialRotate(data) {
             clearTimeout(state.ratingSaveTimer);
         }
         
+        // Capture ratingKey now so a skip before the timer fires doesn't lose/misroute the rating
+        const ratingKeyToSave = state.currentTrack?.ratingKey;
         state.ratingSaveTimer = setTimeout(() => {
-            playbackController.setRating(newRating);
+            playbackController.setRating(newRating, ratingKeyToSave);
             state.ratingSaveTimer = null;
         }, 2000);
     }
@@ -387,8 +389,10 @@ async function handleButtonAction(action, context) {
                 clearTimeout(state.ratingSaveTimer);
             }
             
+            // Capture ratingKey now so a skip before the timer fires doesn't lose/misroute the rating
+            const ratingKeyToSave = state.currentTrack?.ratingKey;
             state.ratingSaveTimer = setTimeout(() => {
-                playbackController.setRating(newRating);
+                playbackController.setRating(newRating, ratingKeyToSave);
                 state.ratingSaveTimer = null;
             }, 2000);
             break;

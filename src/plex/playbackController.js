@@ -187,14 +187,15 @@ class PlaybackController {
 
     /**
      * Set rating
+     * @param {number} rating - Rating value 0-10
+     * @param {string} [ratingKeyOverride] - Explicit ratingKey; falls back to current track
      */
-    async setRating(rating) {
-        if (!state.currentTrack?.ratingKey) {
+    async setRating(rating, ratingKeyOverride) {
+        const ratingKey = ratingKeyOverride || state.currentTrack?.ratingKey;
+        if (!ratingKey) {
             logger.warn('Cannot set rating: no current track');
             return;
         }
-
-        const ratingKey = state.currentTrack.ratingKey;
         
         try {
             await plexConnection.serverCommand(
@@ -204,7 +205,11 @@ class PlaybackController {
             
             // Cache the user-set rating
             state.setUserRating(ratingKey, rating);
-            state.currentRating = rating;
+            
+            // Only update current display rating if we're rating the current track
+            if (ratingKey === state.currentTrack?.ratingKey) {
+                state.currentRating = rating;
+            }
             
             logger.info(`Rating set to ${rating / 2} stars`);
         } catch (error) {
