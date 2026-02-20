@@ -1,8 +1,7 @@
-<h1 align="center">Ampdeck+ v2.0</h1>
+<h1 align="center">Ampdeck+</h1>
 
 <p align="center">
   <strong>The <em><strong>unofficial</strong></em> Plexamp plugin for Stream Deck</strong><br>
-  <em>Ampdeck+ v2.0.1 - Now with time display toggle, just like Plexamp</em>
 </p>
 
 Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, playback time, and rate your tracks on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
@@ -22,24 +21,11 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0
+## ⚡ What's New in v2.0.1
 
-- **🏗️ Professional Architecture** - Complete modular rewrite with 12 specialized ES6 modules
-- **🎬 Animated Seek Buttons** - Previous/Next buttons feature smooth directional animation during hold-to-seek with wrapping effect
-- **🎨 Canvas-Rendered Navigation** - Next/Previous buttons rendered with dynamic accent colors that adapt to album art
-- **🔧 Configurable Icon Sizes** - Choose from 4 icon size presets (24-48px) for navigation buttons
-- **😴 Paused State Dimming** - All buttons automatically turn gray when playback is paused for clear visual feedback
-- **📐 Symmetrical Spacing** - Professional layout with equal gaps throughout the UI: touch strip, Track Info, Time Elapsed, and overlays
-- **📝 Enlarged Text** - Dramatically improved readability: Time display (42/40px), Track Info (36/26/24/42px), overlays (24/44px)
-- **⭐ Enhanced Rating System** - Half-star increments, wrap-around from 5 to 0, and debounced saves for smooth server communication
-- **👆 Touch Strip Tap-to-Pause** - Tap anywhere on the strip to play/pause
-- **🎵 Album Art Interaction** - Tap album art tile to play/pause with gray overlay visual feedback
-- **🔄 Automatic Reconnection** - Graceful WebSocket recovery if Stream Deck disconnects
-- **✅ Input Validation** - Comprehensive validation for all user settings
-- **📊 Centralized State** - Clean state management replacing 30+ scattered globals
-- **🎯 Zero ESLint Warnings** - Production-quality code passing all checks
-- **🛡️ Advanced Error Handling** - Graceful fallbacks and detailed logging system
-- **📦 Modern Build System** - Rollup bundler with ES6+ features
+- **⏱️ Time Display Toggle** - Time Elapsed button now toggles between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp! Switch between `2:26 / 5:00` and `2:26 / -2:34`.
+
+📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 
 ---
 
