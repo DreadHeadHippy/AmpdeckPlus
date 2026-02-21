@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.2] - 2026-02-21
+
+### ✨ New Features
+- **Volume Up & Volume Down buttons** — Two new dedicated key actions
+  - Canvas-drawn speaker icon (body + two wave arcs + `+`/`−` badge) — no static image, fully rendered like the Next/Previous buttons
+  - Icon fills from the bottom with the dynamic album art accent color proportional to current volume
+  - At 0% the entire icon is dark gray; at 100% the entire icon (including the badge) is filled with accent color
+  - **Long-press mute on Volume Down** — hold for 400ms to mute Plexamp instantly; press hold again to restore to the previous volume level
+  - Quick tap still adjusts volume by ±5% as expected
+
+### 🐛 Bug Fixes
+- **Volume reset to 50% at 0%** — `timelineData.volume || 50` falsily treated `0` as missing; changed to nullish coalescing (`?? 50`) so 0% is respected
+- **Volume race condition** — rapid presses or timeline polls could overwrite a pending volume command with a stale server value; fixed with a 2-second post-command guard and immediate optimistic state update with revert-on-failure
+- **Rapid press phantom mute** — the long-press mute timer could fire against a later rapid press's hold state; fixed by capturing a reference identity at schedule time and rejecting the timeout if the hold state belongs to a different press
+- **Mute restore state leak** — `muteRestoreVolume` was not cleared on manual tap adjustments; both Volume Up and Volume Down taps now clear it so manual control always takes full ownership
+
+---
+
 ## [2.0.1] - 2026-02-20
 
 ### ✨ New Features

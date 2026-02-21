@@ -151,6 +151,30 @@ function onKeyDown(data) {
         isHolding: false
     };
 
+    // Long-press mute/unmute for Volume Down
+    if (action === ACTIONS.VOLUME_DOWN) {
+        // Capture the exact holdState object created above so a later rapid press
+        // can't be mistaken for this one when the timeout fires.
+        const thisHoldState = state.buttonHoldState[context];
+        setTimeout(() => {
+            const holdState = state.buttonHoldState[context];
+            // Bail if the hold state is gone or belongs to a different press
+            if (!holdState || holdState !== thisHoldState || holdState.didMute) return;
+            holdState.didMute = true;
+
+            if (state.muteRestoreVolume !== null) {
+                // Already muted — restore
+                const restoreVol = state.muteRestoreVolume;
+                state.muteRestoreVolume = null;
+                playbackController.setVolume(restoreVol);
+            } else {
+                // Mute — save current volume then go to 0
+                state.muteRestoreVolume = state.currentVolume > 0 ? state.currentVolume : 50;
+                playbackController.setVolume(0);
+            }
+        }, TIMING.HOLD_THRESHOLD);
+    }
+
     // Start hold-to-seek timer for prev/next
     if (action === ACTIONS.PREVIOUS || action === ACTIONS.NEXT) {
         setTimeout(() => {
@@ -233,8 +257,8 @@ function onKeyUp(data) {
         holdState.isHolding = false;
     }
     
-    // If we were seeking, don't execute the button action
-    if (holdState.didSeek) {
+    // If we were seeking or muting, don't also fire the tap action
+    if (holdState.didSeek || holdState.didMute) {
         // Reset button to normal state
         if (action === ACTIONS.PREVIOUS) {
             buttonRenderer.renderPrevious(context);
@@ -401,6 +425,20 @@ async function handleButtonAction(action, context) {
             state.toggleTimeDisplayMode(context);
             logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
             break;
+        case ACTIONS.VOLUME_UP: {
+            // Clear mute state — user is taking manual control
+            state.muteRestoreVolume = null;
+            const newVol = Math.min(VOLUME.MAX, state.currentVolume + VOLUME.STEP);
+            await playbackController.setVolume(newVol);
+            break;
+        }
+        case ACTIONS.VOLUME_DOWN: {
+            // Clear mute state — user is taking manual control
+            state.muteRestoreVolume = null;
+            const newVol = Math.max(VOLUME.MIN, state.currentVolume - VOLUME.STEP);
+            await playbackController.setVolume(newVol);
+            break;
+        }
     }
     
     // Update displays after action
@@ -571,6 +609,12 @@ function updateDisplay(context) {
             break;
         case ACTIONS.STRIP:
             layoutManager.renderStripLayout(context);
+            break;
+        case ACTIONS.VOLUME_UP:
+            buttonRenderer.renderVolumeUp(context);
+            break;
+        case ACTIONS.VOLUME_DOWN:
+            buttonRenderer.renderVolumeDown(context);
             break;
     }
 }

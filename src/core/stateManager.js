@@ -40,6 +40,8 @@ class StateManager {
         this.currentShuffle = 0;
         this.currentRepeat = 0;
         this.currentRating = 0;
+        this.muteRestoreVolume = null;   // non-null = currently muted, value is restore target
+        this.lastVolumeCommandTime = 0; // timestamp of last setVolume call
 
         // Rating cache (handles Plex metadata delays)
         this.userSetRatings = {}; // ratingKey -> rating value

@@ -22,7 +22,9 @@
         RATING: 'com.dreadheadhippy.ampdeckplus.rating',
         SHUFFLE: 'com.dreadheadhippy.ampdeckplus.shuffle',
         REPEAT: 'com.dreadheadhippy.ampdeckplus.repeat',
-        STRIP: 'com.dreadheadhippy.ampdeckplus.strip'
+        STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
+        VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
+        VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down'
     };
 
     // Timing constants
@@ -366,6 +368,8 @@
             this.currentShuffle = 0;
             this.currentRepeat = 0;
             this.currentRating = 0;
+            this.muteRestoreVolume = null;   // non-null = currently muted, value is restore target
+            this.lastVolumeCommandTime = 0; // timestamp of last setVolume call
 
             // Rating cache (handles Plex metadata delays)
             this.userSetRatings = {}; // ratingKey -> rating value
@@ -1078,16 +1082,23 @@
          */
         async setVolume(level) {
             const volume = clamp(level, VOLUME.MIN, VOLUME.MAX);
+            const previousVolume = state.currentVolume;
+            
+            // Optimistic update + guard so timeline doesn't overwrite us mid-flight
+            state.currentVolume = volume;
+            state.lastVolumeCommandTime = Date.now();
             
             try {
                 await plexConnection.playerCommand(
                     '/player/playback/setParameters',
                     `volume=${volume}`
                 );
-                
-                state.currentVolume = volume;
                 logger.debug(`Volume set to ${volume}`);
             } catch (error) {
+                // Command failed (network issue, 1s abort, etc.) — revert optimistic
+                // state and drop the guard so the next timeline poll can correct things
+                state.currentVolume = previousVolume;
+                state.lastVolumeCommandTime = 0;
                 logger.error(`Failed to set volume: ${error.message}`);
             }
         }
@@ -1208,7 +1219,12 @@
                 Date.now()
             );
             state.trackDuration = timelineData.duration || 0;
-            state.currentVolume = timelineData.volume || 50;
+            // Only accept volume from timeline if no recent local command (avoids race condition
+            // and also fixes 0 || 50 falsy bug by using nullish coalescing)
+            const timeSinceVolumeCommand = Date.now() - state.lastVolumeCommandTime;
+            if (timeSinceVolumeCommand > 2000) {
+                state.currentVolume = timelineData.volume ?? 50;
+            }
             state.currentShuffle = timelineData.shuffle || 0;
             state.currentRepeat = timelineData.repeat || 0;
 
@@ -1974,6 +1990,130 @@
     }
 
     /**
+     * Render volume up button
+     */
+    function renderVolumeUp(context) {
+        renderVolumeButton(context, 'up');
+    }
+
+    /**
+     * Render volume down button
+     */
+    function renderVolumeDown(context) {
+        renderVolumeButton(context, 'down');
+    }
+
+    /**
+     * Shared volume button renderer
+     * Draws a speaker + waves icon with a +/- badge.
+     * The icon is filled from bottom with accent color proportional to current volume.
+     *
+     * @param {string} context - Stream Deck button context
+     * @param {'up'|'down'} direction - Which button variant to draw
+     */
+    function renderVolumeButton(context, direction) {
+        const canvas = createCanvas();
+        const ctx = canvas.getContext('2d');
+        const S = CANVAS.BUTTON_SIZE; // 144
+
+        ctx.fillStyle = COLORS.BLACK;
+        ctx.fillRect(0, 0, S, S);
+
+        const accentColor = getAccentColor$1();
+        const volume = Math.max(0, Math.min(100, state.currentVolume ?? 50));
+
+        // ── Speaker geometry ───────────────────────────────────────────
+        // Box (rectangle on left): x 18-40, y 54-90
+        // Cone (trapezoid flaring right): base at x=40 (y 54-90), tip at x=64 (y 34-110)
+        const bL = 18, bR = 40, bT = 54, bB = 90;   // box
+        const cR = 64, cT = 34, cB = 110;            // cone right-edge x, top y, bottom y
+
+        // Two wave arcs to the right of the cone, centered on speaker midline
+        const wCX = 58, wCY = 72;
+        const waveData = [
+            { r: 18, a0: -0.7, a1: 0.7 },
+            { r: 34, a0: -0.7, a1: 0.7 }
+        ];
+
+        // +/- badge: top-right corner, centered at (112, 32)
+        const bX = 112, bY = 32, bArm = 11;
+
+        // Icon vertical bounds for fill calculation — must cover badge top (bY - bArm) too
+        const iconTop = bY - bArm;  // 21 — top of the +/- badge arms
+        const iconBottom = cB;      // 110
+
+        // ── Draw helpers ───────────────────────────────────────────────
+        const drawSpeaker = () => {
+            ctx.beginPath();
+            ctx.moveTo(bL, bT);           // box top-left
+            ctx.lineTo(bR, bT);           // box top-right
+            ctx.lineTo(cR, cT);           // cone upper tip
+            ctx.lineTo(cR, cB);           // cone lower tip
+            ctx.lineTo(bR, bB);           // box bottom-right
+            ctx.lineTo(bL, bB);           // box bottom-left
+            ctx.closePath();
+        };
+
+        const drawWaves = () => {
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            for (const w of waveData) {
+                ctx.beginPath();
+                ctx.arc(wCX, wCY, w.r, w.a0, w.a1);
+                ctx.stroke();
+            }
+        };
+
+        const drawBadge = () => {
+            ctx.lineWidth = 5.5;
+            ctx.lineCap = 'round';
+            // Horizontal bar (shared by + and -)
+            ctx.beginPath();
+            ctx.moveTo(bX - bArm, bY);
+            ctx.lineTo(bX + bArm, bY);
+            ctx.stroke();
+            if (direction === 'up') {
+                // Vertical bar to make +
+                ctx.beginPath();
+                ctx.moveTo(bX, bY - bArm);
+                ctx.lineTo(bX, bY + bArm);
+                ctx.stroke();
+            }
+        };
+
+        // ── Step 1: full icon in dark gray (represents "empty") ────────
+        ctx.fillStyle = COLORS.DARK_GRAY;
+        drawSpeaker();
+        ctx.fill();
+
+        ctx.strokeStyle = COLORS.DARK_GRAY;
+        drawWaves();
+        drawBadge();
+
+        // ── Step 2: clip to filled portion and redraw in accent color ──
+        if (volume > 0) {
+            const fillY = iconBottom - (volume / 100) * (iconBottom - iconTop);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, fillY, S, S - fillY);
+            ctx.clip();
+
+            ctx.fillStyle = accentColor;
+            drawSpeaker();
+            ctx.fill();
+
+            ctx.strokeStyle = accentColor;
+            drawWaves();
+            drawBadge();
+
+            ctx.restore();
+        }
+
+        sendImage(context, canvas.toDataURL('image/png'));
+    }
+
+    /**
      * Send image to Stream Deck
      */
     function sendImage(context, dataUrl) {
@@ -1995,7 +2135,9 @@
         renderTime,
         renderRating,
         renderShuffle,
-        renderRepeat
+        renderRepeat,
+        renderVolumeUp,
+        renderVolumeDown
     };
 
     /**
@@ -2513,6 +2655,30 @@
             isHolding: false
         };
 
+        // Long-press mute/unmute for Volume Down
+        if (action === ACTIONS.VOLUME_DOWN) {
+            // Capture the exact holdState object created above so a later rapid press
+            // can't be mistaken for this one when the timeout fires.
+            const thisHoldState = state.buttonHoldState[context];
+            setTimeout(() => {
+                const holdState = state.buttonHoldState[context];
+                // Bail if the hold state is gone or belongs to a different press
+                if (!holdState || holdState !== thisHoldState || holdState.didMute) return;
+                holdState.didMute = true;
+
+                if (state.muteRestoreVolume !== null) {
+                    // Already muted — restore
+                    const restoreVol = state.muteRestoreVolume;
+                    state.muteRestoreVolume = null;
+                    playbackController.setVolume(restoreVol);
+                } else {
+                    // Mute — save current volume then go to 0
+                    state.muteRestoreVolume = state.currentVolume > 0 ? state.currentVolume : 50;
+                    playbackController.setVolume(0);
+                }
+            }, TIMING.HOLD_THRESHOLD);
+        }
+
         // Start hold-to-seek timer for prev/next
         if (action === ACTIONS.PREVIOUS || action === ACTIONS.NEXT) {
             setTimeout(() => {
@@ -2595,8 +2761,8 @@
             holdState.isHolding = false;
         }
         
-        // If we were seeking, don't execute the button action
-        if (holdState.didSeek) {
+        // If we were seeking or muting, don't also fire the tap action
+        if (holdState.didSeek || holdState.didMute) {
             // Reset button to normal state
             if (action === ACTIONS.PREVIOUS) {
                 buttonRenderer.renderPrevious(context);
@@ -2763,6 +2929,20 @@
                 state.toggleTimeDisplayMode(context);
                 logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
                 break;
+            case ACTIONS.VOLUME_UP: {
+                // Clear mute state — user is taking manual control
+                state.muteRestoreVolume = null;
+                const newVol = Math.min(VOLUME.MAX, state.currentVolume + VOLUME.STEP);
+                await playbackController.setVolume(newVol);
+                break;
+            }
+            case ACTIONS.VOLUME_DOWN: {
+                // Clear mute state — user is taking manual control
+                state.muteRestoreVolume = null;
+                const newVol = Math.max(VOLUME.MIN, state.currentVolume - VOLUME.STEP);
+                await playbackController.setVolume(newVol);
+                break;
+            }
         }
         
         // Update displays after action
@@ -2933,6 +3113,12 @@
                 break;
             case ACTIONS.STRIP:
                 layoutManager.renderStripLayout(context);
+                break;
+            case ACTIONS.VOLUME_UP:
+                buttonRenderer.renderVolumeUp(context);
+                break;
+            case ACTIONS.VOLUME_DOWN:
+                buttonRenderer.renderVolumeDown(context);
                 break;
         }
     }

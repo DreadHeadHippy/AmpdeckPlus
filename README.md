@@ -21,10 +21,11 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.1
+## ⚡ What's New in v2.0.2
 
-- **⏱️ Time Display Toggle** - Time Elapsed button now toggles between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp! Switch between `2:26 / 5:00` and `2:26 / -2:34`.
-- **🐛 Rating Fix** - Fixed rating preservation when skipping tracks. Rate a track and immediately skip—the rating is now correctly saved to the intended track in Plex, and the Stream Deck display shows the accurate rating for the new track.
+- **🔊 Volume Up & Volume Down buttons** — Two new dedicated key actions each featuring a canvas-drawn speaker icon. The icon fills from the bottom with the dynamic album art accent color proportional to the current volume — 50% volume fills the bottom half, 100% fills the whole icon including the `+`/`−` badge.
+- **🔇 Long-press mute on Volume Down** — Hold the Volume Down button for 400ms to instantly mute Plexamp. Hold again to restore to the previous volume level.
+- **🐛 Volume display fixes** — Fixed volume snapping back to 50% when at 0% (falsy `||` bug), eliminated race condition where rapid presses or timeline polls could overwrite a pending volume command with a stale server value.
 
 📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 
@@ -39,6 +40,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star or half star). Wraps from 5 stars back to 0 for quick clearing.
 - **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
+- **Volume Up / Down** — Dedicated buttons with a canvas-drawn speaker icon. The icon fills with the album art accent color from the bottom proportional to current volume. Hold **Volume Down** for 400ms to mute; hold again to restore.
 - **Play / Pause** — Dedicated button with instant visual feedback.
 - **Previous / Next** — Tap to skip tracks. Hold for 400ms to activate seek mode with **animated directional arrows** that smoothly travel across the button and wrap around Pac-Man style. Previous arrows move left, Next arrows move right. Configurable icon size (24-48px) with four preset options.
 - **Paused State Visual Feedback** — When playback is paused, all buttons turn gray automatically: Album Art overlay, Navigation buttons, and all other action tiles provide clear visual indication.
@@ -81,6 +83,8 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 | Track Info | ✓ | ✓ |
 | Time Elapsed | ✓ | ✓ |
 | Rating | ✓ | ✓ |
+| Volume Up | ✓ | ✓ |
+| Volume Down | ✓ | ✓ |
 | Now Playing Strip | — | ✓ |
 | Dial Controls | — | ✓ |
 | Spanning Progress Bar | — | ✓ |
@@ -127,7 +131,7 @@ The install scripts will update the plugin while preserving your settings.
 
 3. Drag **Album Art** to any button
 4. Drag **Now Playing Strip** to all 4 dials
-5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
+5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Volume Up**, **Volume Down**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
 6. Click any Ampdeck+ action and configure:
 
 ### Connection Settings

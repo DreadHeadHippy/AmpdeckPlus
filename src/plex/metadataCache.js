@@ -23,7 +23,12 @@ class MetadataCache {
             Date.now()
         );
         state.trackDuration = timelineData.duration || 0;
-        state.currentVolume = timelineData.volume || 50;
+        // Only accept volume from timeline if no recent local command (avoids race condition
+        // and also fixes 0 || 50 falsy bug by using nullish coalescing)
+        const timeSinceVolumeCommand = Date.now() - state.lastVolumeCommandTime;
+        if (timeSinceVolumeCommand > 2000) {
+            state.currentVolume = timelineData.volume ?? 50;
+        }
         state.currentShuffle = timelineData.shuffle || 0;
         state.currentRepeat = timelineData.repeat || 0;
 

@@ -6,7 +6,7 @@
   "Name": "Ampdeck+",
   "Icon": "imgs/plugin-icon",
   "URL": "https://github.com/DreadHeadHippy/Ampdeckplus",
-  "Version": "2.0.1.0",
+  "Version": "2.0.2.0",
   "Category": "Ampdeck+",
   "CategoryIcon": "imgs/category-icon",
   "OS": [
@@ -171,6 +171,34 @@
       "SupportedInMultiActions": true,
       "Tooltip": "Cycle repeat: Off → All → One",
       "UUID": "com.dreadheadhippy.ampdeckplus.repeat",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/play-pause-icon",
+      "Name": "Volume Up",
+      "States": [
+        {
+          "Image": "imgs/play-pause-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Increase volume by 5%",
+      "UUID": "com.dreadheadhippy.ampdeckplus.volume-up",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/play-pause-icon",
+      "Name": "Volume Down",
+      "States": [
+        {
+          "Image": "imgs/play-pause-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Decrease volume by 5%",
+      "UUID": "com.dreadheadhippy.ampdeckplus.volume-down",
       "PropertyInspectorPath": "pi.html"
     }
   ],

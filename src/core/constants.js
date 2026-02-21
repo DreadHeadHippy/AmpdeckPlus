@@ -19,7 +19,9 @@ export const ACTIONS = {
     RATING: 'com.dreadheadhippy.ampdeckplus.rating',
     SHUFFLE: 'com.dreadheadhippy.ampdeckplus.shuffle',
     REPEAT: 'com.dreadheadhippy.ampdeckplus.repeat',
-    STRIP: 'com.dreadheadhippy.ampdeckplus.strip'
+    STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
+    VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
+    VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down'
 };
 
 // Timing constants

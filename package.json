@@ -1,6 +1,6 @@
 {
   "name": "ampdeckplus",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Professional Stream Deck plugin for Plexamp - Modular Architecture",
   "private": true,
   "type": "module",

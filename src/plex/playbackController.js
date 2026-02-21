@@ -126,16 +126,23 @@ class PlaybackController {
      */
     async setVolume(level) {
         const volume = clamp(level, VOLUME.MIN, VOLUME.MAX);
+        const previousVolume = state.currentVolume;
+        
+        // Optimistic update + guard so timeline doesn't overwrite us mid-flight
+        state.currentVolume = volume;
+        state.lastVolumeCommandTime = Date.now();
         
         try {
             await plexConnection.playerCommand(
                 '/player/playback/setParameters',
                 `volume=${volume}`
             );
-            
-            state.currentVolume = volume;
             logger.debug(`Volume set to ${volume}`);
         } catch (error) {
+            // Command failed (network issue, 1s abort, etc.) — revert optimistic
+            // state and drop the guard so the next timeline poll can correct things
+            state.currentVolume = previousVolume;
+            state.lastVolumeCommandTime = 0;
             logger.error(`Failed to set volume: ${error.message}`);
         }
     }

@@ -588,6 +588,130 @@ export function renderNext(context, animationFrame = null) {
 }
 
 /**
+ * Render volume up button
+ */
+export function renderVolumeUp(context) {
+    renderVolumeButton(context, 'up');
+}
+
+/**
+ * Render volume down button
+ */
+export function renderVolumeDown(context) {
+    renderVolumeButton(context, 'down');
+}
+
+/**
+ * Shared volume button renderer
+ * Draws a speaker + waves icon with a +/- badge.
+ * The icon is filled from bottom with accent color proportional to current volume.
+ *
+ * @param {string} context - Stream Deck button context
+ * @param {'up'|'down'} direction - Which button variant to draw
+ */
+function renderVolumeButton(context, direction) {
+    const canvas = createCanvas();
+    const ctx = canvas.getContext('2d');
+    const S = CANVAS.BUTTON_SIZE; // 144
+
+    ctx.fillStyle = COLORS.BLACK;
+    ctx.fillRect(0, 0, S, S);
+
+    const accentColor = getAccentColor();
+    const volume = Math.max(0, Math.min(100, state.currentVolume ?? 50));
+
+    // ── Speaker geometry ───────────────────────────────────────────
+    // Box (rectangle on left): x 18-40, y 54-90
+    // Cone (trapezoid flaring right): base at x=40 (y 54-90), tip at x=64 (y 34-110)
+    const bL = 18, bR = 40, bT = 54, bB = 90;   // box
+    const cR = 64, cT = 34, cB = 110;            // cone right-edge x, top y, bottom y
+
+    // Two wave arcs to the right of the cone, centered on speaker midline
+    const wCX = 58, wCY = 72;
+    const waveData = [
+        { r: 18, a0: -0.7, a1: 0.7 },
+        { r: 34, a0: -0.7, a1: 0.7 }
+    ];
+
+    // +/- badge: top-right corner, centered at (112, 32)
+    const bX = 112, bY = 32, bArm = 11;
+
+    // Icon vertical bounds for fill calculation — must cover badge top (bY - bArm) too
+    const iconTop = bY - bArm;  // 21 — top of the +/- badge arms
+    const iconBottom = cB;      // 110
+
+    // ── Draw helpers ───────────────────────────────────────────────
+    const drawSpeaker = () => {
+        ctx.beginPath();
+        ctx.moveTo(bL, bT);           // box top-left
+        ctx.lineTo(bR, bT);           // box top-right
+        ctx.lineTo(cR, cT);           // cone upper tip
+        ctx.lineTo(cR, cB);           // cone lower tip
+        ctx.lineTo(bR, bB);           // box bottom-right
+        ctx.lineTo(bL, bB);           // box bottom-left
+        ctx.closePath();
+    };
+
+    const drawWaves = () => {
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        for (const w of waveData) {
+            ctx.beginPath();
+            ctx.arc(wCX, wCY, w.r, w.a0, w.a1);
+            ctx.stroke();
+        }
+    };
+
+    const drawBadge = () => {
+        ctx.lineWidth = 5.5;
+        ctx.lineCap = 'round';
+        // Horizontal bar (shared by + and -)
+        ctx.beginPath();
+        ctx.moveTo(bX - bArm, bY);
+        ctx.lineTo(bX + bArm, bY);
+        ctx.stroke();
+        if (direction === 'up') {
+            // Vertical bar to make +
+            ctx.beginPath();
+            ctx.moveTo(bX, bY - bArm);
+            ctx.lineTo(bX, bY + bArm);
+            ctx.stroke();
+        }
+    };
+
+    // ── Step 1: full icon in dark gray (represents "empty") ────────
+    ctx.fillStyle = COLORS.DARK_GRAY;
+    drawSpeaker();
+    ctx.fill();
+
+    ctx.strokeStyle = COLORS.DARK_GRAY;
+    drawWaves();
+    drawBadge();
+
+    // ── Step 2: clip to filled portion and redraw in accent color ──
+    if (volume > 0) {
+        const fillY = iconBottom - (volume / 100) * (iconBottom - iconTop);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, fillY, S, S - fillY);
+        ctx.clip();
+
+        ctx.fillStyle = accentColor;
+        drawSpeaker();
+        ctx.fill();
+
+        ctx.strokeStyle = accentColor;
+        drawWaves();
+        drawBadge();
+
+        ctx.restore();
+    }
+
+    sendImage(context, canvas.toDataURL('image/png'));
+}
+
+/**
  * Send image to Stream Deck
  */
 function sendImage(context, dataUrl) {
@@ -609,5 +733,7 @@ export default {
     renderTime,
     renderRating,
     renderShuffle,
-    renderRepeat
+    renderRepeat,
+    renderVolumeUp,
+    renderVolumeDown
 };
