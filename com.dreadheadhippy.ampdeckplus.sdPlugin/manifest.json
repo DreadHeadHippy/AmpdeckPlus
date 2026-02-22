@@ -174,11 +174,11 @@
       "PropertyInspectorPath": "pi.html"
     },
     {
-      "Icon": "imgs/play-pause-icon",
+      "Icon": "imgs/volume-up-icon",
       "Name": "Volume Up",
       "States": [
         {
-          "Image": "imgs/play-pause-icon",
+          "Image": "imgs/volume-up-icon",
           "ShowTitle": false
         }
       ],
@@ -188,11 +188,11 @@
       "PropertyInspectorPath": "pi.html"
     },
     {
-      "Icon": "imgs/play-pause-icon",
+      "Icon": "imgs/volume-down-icon",
       "Name": "Volume Down",
       "States": [
         {
-          "Image": "imgs/play-pause-icon",
+          "Image": "imgs/volume-down-icon",
           "ShowTitle": false
         }
       ],
