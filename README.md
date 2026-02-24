@@ -7,6 +7,12 @@
 Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, playback time, and rate your tracks on the LCD keys. All updated in real time. Stream Deck+ users get the full experience with a smooth animated progress bar spanning the touch strip and configurable dial controls.
 
 <p align="center">
+  <a href="https://marketplace.elgato.com/product/ampdeck-52a986e0-7da0-4e09-ba16-84858fcb5524">
+     <strong>Available Now on the Elgato Marketplace</strong>
+  </a>
+</p>
+
+<p align="center">
   <img src="assets/streamdeck-overview.png" alt="Ampdeck+ on Stream Deck+" width="700">
 </p>
 
