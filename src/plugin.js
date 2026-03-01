@@ -69,6 +69,16 @@ function handleStreamDeckMessage(data) {
         case 'touchTap':
             onTouchTap(data);
             break;
+        case 'systemDidWakeUp':
+            // Stream Deck fires this on OS sleep/wake and when restored from tray.
+            // Web Worker timers are throttled by CEF while the window is hidden,
+            // so we restart the poll cycle to guarantee fresh state immediately.
+            logger.info('System wake detected, restarting poll cycle');
+            stopPolling();
+            if (state.hasActions()) {
+                startPolling();
+            }
+            break;
     }
 }
 
@@ -111,6 +121,9 @@ function onWillDisappear(data) {
 
 function onDidReceiveGlobalSettings(data) {
     const settings = data.payload.settings || {};
+    // Global settings are the authoritative source for ALL preferences.
+    // This includes display settings (dynamicColors, textColor, debugMode, syncOffset)
+    // which must not be overwritten by per-action settings in applySettingsToGlobal.
     state.updateGlobalSettings(settings);
     updateLogLevel();
     configurePlexConnection();
@@ -450,15 +463,16 @@ async function handleButtonAction(action, context) {
 // ============================================
 
 function applySettingsToGlobal(settings) {
+    // Only propagate connection settings from per-action settings.
+    // Display preferences (dynamicColors, textColor, debugMode, syncOffset) must
+    // only flow from didReceiveGlobalSettings — propagating them here causes any
+    // action with stale per-action settings to silently overwrite the correct
+    // global value (e.g. re-enabling dynamic colors after the user unchecked it).
     if (settings.plexServerUrl) state.updateGlobalSettings({ plexServerUrl: settings.plexServerUrl });
     if (settings.plexToken) state.updateGlobalSettings({ plexToken: settings.plexToken });
     if (settings.clientName) state.updateGlobalSettings({ clientName: settings.clientName });
     if (settings.playerUrl) state.updateGlobalSettings({ playerUrl: settings.playerUrl });
-    if (settings.syncOffset !== undefined) state.updateGlobalSettings({ syncOffset: settings.syncOffset });
-    if (settings.textColor) state.updateGlobalSettings({ textColor: settings.textColor });
-    if (settings.dynamicColors !== undefined) state.updateGlobalSettings({ dynamicColors: settings.dynamicColors });
-    if (settings.debugMode !== undefined) state.updateGlobalSettings({ debugMode: settings.debugMode });
-    
+
     updateLogLevel();
     configurePlexConnection();
 }
@@ -494,18 +508,18 @@ function configurePlexConnection() {
 
 function startPolling() {
     if (state.pollWorker) return; // Already polling
-    
+
     const pollWorker = createWorker(TIMING.POLL_INTERVAL);
     const renderWorker = createWorker(TIMING.RENDER_INTERVAL);
-    
+
     pollWorker.onmessage = () => pollTimeline();
     renderWorker.onmessage = () => renderTick();
-    
+
     pollWorker.postMessage('start');
     renderWorker.postMessage('start');
-    
+
     state.setWorkers(pollWorker, renderWorker);
-    
+
     logger.info('Polling started');
     pollTimeline(); // Initial poll
 }

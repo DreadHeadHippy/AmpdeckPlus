@@ -27,12 +27,20 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.3
+## ⚡ What's New in v2.0.4
+
+- **🐛 Dynamic accent color setting no longer resets on song change** — Unchecking "Dynamic accent colors from album art" would revert to dynamic after the next track change. Display preferences are now exclusively read from global settings, preventing any per-action settings from overwriting them.
+- **🐛 Plugin no longer goes stale after sleep or Stream Deck tray minimize** — Added the `systemDidWakeUp` SDK event handler to restart the poll cycle on OS wake, preventing stale album art and track info after the system resumes.
+
+<details>
+<summary>Previous release — v2.0.3</summary>
 
 - **🐛 Buttons no longer go stale after Stream Deck minimize to tray** — After reconnecting, the plugin was holding a stale reference to the original closed WebSocket. Album art, track info, and all button renders would freeze on the last displayed state and never update again until a full Stream Deck restart. This is now fixed.
 
+</details>
+
 <details>
-<summary>Previous release — v2.0.2</summary>
+<summary>v2.0.2</summary>
 
 - **🔊 Volume Up & Volume Down buttons** — Two new dedicated key actions each featuring a canvas-drawn speaker icon. The icon fills from the bottom with the dynamic album art accent color proportional to the current volume — 50% volume fills the bottom half, 100% fills the whole icon including the `+`/`−` badge.
 - **🔇 Long-press mute on Volume Down** — Hold the Volume Down button for 400ms to instantly mute Plexamp. Hold again to restore to the previous volume level.

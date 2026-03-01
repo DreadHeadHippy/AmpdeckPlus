@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.4] - 2026-03-01
+
+### 🐛 Bug Fixes
+- **Dynamic colors re-enable on song change** — Display preferences (`dynamicColors`, `textColor`, `debugMode`, `syncOffset`) were being propagated from each action's per-action settings into global state on every `willAppear` event. With multiple actions on the deck, whichever action fired last would silently overwrite the correct global value — so unchecking "Dynamic accent colors" would get reset back to enabled when the next track (and therefore `willAppear`) fired. Fixed by making `didReceiveGlobalSettings` the sole authoritative source for display preferences; per-action propagation now only applies connection settings (`plexServerUrl`, `plexToken`, `playerUrl`, `clientName`).
+- **Plugin goes stale after OS sleep or Stream Deck tray minimize** — Added a `systemDidWakeUp` handler (the correct Stream Deck SDK event for OS sleep/wake and tray restore). Web Worker timers are throttled by CEF while the window is hidden; on wake the poll cycle is now fully restarted so the plugin immediately resumes tracking playback.
+
+---
+
 ## [2.0.3] - 2026-03-01
 
 ### 🐛 Bug Fixes
