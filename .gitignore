@@ -9,6 +9,7 @@ Desktop.ini
 *~
 .vscode/
 .idea/
+.VSCodeCounter/
 
 # Build artifacts (keep .streamDeckPlugin for releases)
 *.zip

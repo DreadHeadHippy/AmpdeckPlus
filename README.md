@@ -27,11 +27,18 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.2
+## ⚡ What's New in v2.0.3
+
+- **🐛 Buttons no longer go stale after Stream Deck minimize to tray** — After reconnecting, the plugin was holding a stale reference to the original closed WebSocket. Album art, track info, and all button renders would freeze on the last displayed state and never update again until a full Stream Deck restart. This is now fixed.
+
+<details>
+<summary>Previous release — v2.0.2</summary>
 
 - **🔊 Volume Up & Volume Down buttons** — Two new dedicated key actions each featuring a canvas-drawn speaker icon. The icon fills from the bottom with the dynamic album art accent color proportional to the current volume — 50% volume fills the bottom half, 100% fills the whole icon including the `+`/`−` badge.
 - **🔇 Long-press mute on Volume Down** — Hold the Volume Down button for 400ms to instantly mute Plexamp. Hold again to restore to the previous volume level.
 - **🐛 Volume display fixes** — Fixed volume snapping back to 50% when at 0% (falsy `||` bug), eliminated race condition where rapid presses or timeline polls could overwrite a pending volume command with a stale server value.
+
+</details>
 
 📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 

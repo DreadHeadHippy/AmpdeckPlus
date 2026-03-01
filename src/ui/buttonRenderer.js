@@ -715,12 +715,12 @@ function renderVolumeButton(context, direction) {
  * Send image to Stream Deck
  */
 function sendImage(context, dataUrl) {
-    if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-        state.websocket.send(JSON.stringify({
+    if (state.connection && state.connection.isConnected()) {
+        state.connection.send({
             event: 'setImage',
             context: context,
             payload: { image: dataUrl, target: 0 }
-        }));
+        });
     }
 }
 

@@ -32,9 +32,9 @@ function connectElgatoStreamDeckSocket(inPort, inPluginUUID, inRegisterEvent, _i
     connection = new ConnectionManager(handleStreamDeckMessage);
     connection.connect(inPort, inPluginUUID, inRegisterEvent);
     
-    // Store connection in state for button renderers
+    // Store connection manager in state so renderers always use the current socket
     state.pluginUUID = inPluginUUID;
-    state.websocket = connection.websocket;
+    state.connection = connection;
 }
 
 /**

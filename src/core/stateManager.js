@@ -12,7 +12,7 @@ class StateManager {
 
     reset() {
         // Stream Deck connection
-        this.websocket = null;
+        this.connection = null;  // ConnectionManager instance (always current after reconnects)
         this.pluginUUID = null;
         this.actions = {}; // context -> { action, settings }
         this.globalSettings = {};

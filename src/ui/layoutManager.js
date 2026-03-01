@@ -347,12 +347,12 @@ export function showStripOverlay(context, title, subtitle = null) {
  * Send feedback layout to Stream Deck
  */
 function setFeedbackLayout(context, layout) {
-    if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-        state.websocket.send(JSON.stringify({
+    if (state.connection && state.connection.isConnected()) {
+        state.connection.send({
             event: 'setFeedbackLayout',
             context: context,
             payload: { layout: layout }
-        }));
+        });
     }
 }
 
@@ -360,12 +360,12 @@ function setFeedbackLayout(context, layout) {
  * Send feedback to Stream Deck
  */
 function setFeedback(context, payload) {
-    if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-        state.websocket.send(JSON.stringify({
+    if (state.connection && state.connection.isConnected()) {
+        state.connection.send({
             event: 'setFeedback',
             context: context,
             payload: payload
-        }));
+        });
     }
 }
 

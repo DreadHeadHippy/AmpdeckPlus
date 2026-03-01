@@ -340,7 +340,7 @@
 
         reset() {
             // Stream Deck connection
-            this.websocket = null;
+            this.connection = null;  // ConnectionManager instance (always current after reconnects)
             this.pluginUUID = null;
             this.actions = {}; // context -> { action, settings }
             this.globalSettings = {};
@@ -2117,12 +2117,12 @@
      * Send image to Stream Deck
      */
     function sendImage(context, dataUrl) {
-        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-            state.websocket.send(JSON.stringify({
+        if (state.connection && state.connection.isConnected()) {
+            state.connection.send({
                 event: 'setImage',
                 context: context,
                 payload: { image: dataUrl, target: 0 }
-            }));
+            });
         }
     }
 
@@ -2485,12 +2485,12 @@
      * Send feedback layout to Stream Deck
      */
     function setFeedbackLayout(context, layout) {
-        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-            state.websocket.send(JSON.stringify({
+        if (state.connection && state.connection.isConnected()) {
+            state.connection.send({
                 event: 'setFeedbackLayout',
                 context: context,
                 payload: { layout: layout }
-            }));
+            });
         }
     }
 
@@ -2498,12 +2498,12 @@
      * Send feedback to Stream Deck
      */
     function setFeedback(context, payload) {
-        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
-            state.websocket.send(JSON.stringify({
+        if (state.connection && state.connection.isConnected()) {
+            state.connection.send({
                 event: 'setFeedback',
                 context: context,
                 payload: payload
-            }));
+            });
         }
     }
 
@@ -2536,9 +2536,9 @@
         connection = new ConnectionManager(handleStreamDeckMessage);
         connection.connect(inPort, inPluginUUID, inRegisterEvent);
         
-        // Store connection in state for button renderers
+        // Store connection manager in state so renderers always use the current socket
         state.pluginUUID = inPluginUUID;
-        state.websocket = connection.websocket;
+        state.connection = connection;
     }
 
     /**

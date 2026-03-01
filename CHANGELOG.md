@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3] - 2026-03-01
+
+### 🐛 Bug Fixes
+- **Buttons go stale after Stream Deck minimize to tray** — On reconnect, `ConnectionManager` creates a fresh WebSocket but the plugin was holding a reference to the original closed socket in `state.websocket`. All `setImage`/`setFeedback` calls silently dropped after any reconnect, freezing album art, track info, and all button renders on whatever was last displayed. Fixed by storing the `ConnectionManager` instance in `state.connection` instead of the raw socket, so all render paths always route through the live socket regardless of how many reconnects have occurred.
+
+---
+
 ## [2.0.2] - 2026-02-21
 
 ### ✨ New Features
