@@ -63,6 +63,11 @@ class StateManager {
         // Pending operations
         this.ratingSaveTimer = null;
         this.pendingRatingContext = null;
+
+        // Playlist carousel state (per dial context)
+        this.carouselState = {};     // context -> { playlists: [], index: 0 }
+        this.dialHoldState = {};     // context -> { pressTime, didLongPress }
+        this.currentPlaylistName = null; // Name of the playlist currently playing (set by us)
     }
 
     // Action management
@@ -77,6 +82,8 @@ class StateManager {
         delete this.stripScrollState[context];
         delete this.buttonHoldState[context];
         delete this.timeDisplayMode[context];
+        delete this.carouselState[context];
+        delete this.dialHoldState[context];
     }
 
     getAction(context) {
@@ -132,6 +139,7 @@ class StateManager {
         this.dominantColor = "#E5A00D";
         this.currentRating = 0;
         this.userSetRatings = {};
+        this.currentPlaylistName = null;
     }
 
     // Playback position
@@ -183,6 +191,19 @@ class StateManager {
 
     getStripOverlay(context) {
         return this.stripOverlays[context];
+    }
+
+    // Playlist carousel state
+    getCarouselState(context) {
+        return this.carouselState[context] || null;
+    }
+
+    setCarouselState(context, carouselData) {
+        this.carouselState[context] = carouselData;
+    }
+
+    clearCarouselState(context) {
+        delete this.carouselState[context];
     }
 
     // Time display mode

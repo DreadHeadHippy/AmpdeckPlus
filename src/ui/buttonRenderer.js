@@ -44,15 +44,15 @@ export function renderAlbumArt(context) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-    const isPaused = state.playbackState === 'paused';
+    const isDimmed = state.playbackState !== 'playing';
 
     if (state.currentAlbumArt) {
         const img = new Image();
         img.onload = () => {
             ctx.drawImage(img, 0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
             
-            // Apply gray overlay when paused
-            if (isPaused) {
+            // Apply gray overlay when paused or stopped
+            if (isDimmed) {
                 ctx.fillStyle = 'rgba(128, 128, 128, 0.6)';
                 ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
             }
@@ -117,9 +117,9 @@ export function renderInfo(context) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-    const isPaused = state.playbackState === 'paused';
-    const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor();
-    const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor();
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     if (state.currentTrack) {
         const media = state.currentTrack.Media?.[0];
@@ -179,9 +179,9 @@ export function renderTime(context) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-    const isPaused = state.playbackState === 'paused';
-    const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor();
-    const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor();
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     // Symmetrical spacing: current time, duration, progress bar
     const timeSize = 42;
@@ -265,9 +265,9 @@ export function renderRating(context) {
     const ratingMode = settings.ratingMode || "half";
     const displayStyle = settings.ratingDisplay || "stars";
     
-    const isPaused = state.playbackState === 'paused';
-    const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor();
-    const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor();
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     if (state.currentTrack) {
         // Display "RATING" label at top
@@ -329,10 +329,10 @@ export function renderShuffle(context) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-    const isPaused = state.playbackState === 'paused';
-    const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
     const isOn = state.currentShuffle === 1;
-    const iconColor = (isPaused || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+    const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
 
     // Crossing arrows
     ctx.strokeStyle = iconColor;
@@ -390,10 +390,10 @@ export function renderRepeat(context) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-    const isPaused = state.playbackState === 'paused';
-    const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
     const isOn = state.currentRepeat > 0;
-    const iconColor = (isPaused || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+    const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
 
     // Loop shape
     ctx.strokeStyle = iconColor;
@@ -457,8 +457,8 @@ export function renderPrevious(context, animationFrame = null) {
 
     const settings = state.getActionSettings(context) || {};
     const iconSize = parseInt(settings.navigationIconSize) || 40;
-    const isPaused = state.playbackState === 'paused';
-    const iconColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     // Calculate animation offset (starts at center, moves left, wraps from right)
     let offsetX = 0;
@@ -528,8 +528,8 @@ export function renderNext(context, animationFrame = null) {
 
     const settings = state.getActionSettings(context) || {};
     const iconSize = parseInt(settings.navigationIconSize) || 40;
-    const isPaused = state.playbackState === 'paused';
-    const iconColor = isPaused ? COLORS.DARK_GRAY : getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     // Calculate animation offset (starts at center, moves right, wraps from left)
     let offsetX = 0;
@@ -617,7 +617,8 @@ function renderVolumeButton(context, direction) {
     ctx.fillStyle = COLORS.BLACK;
     ctx.fillRect(0, 0, S, S);
 
-    const accentColor = getAccentColor();
+    const isDimmed = state.playbackState !== 'playing';
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
     const volume = Math.max(0, Math.min(100, state.currentVolume ?? 50));
 
     // ── Speaker geometry ───────────────────────────────────────────
@@ -712,6 +713,166 @@ function renderVolumeButton(context, direction) {
 }
 
 /**
+ * Render playlist button.
+ *
+ * Empty (no playlist set): dot+bar list icon + "PLAYLIST" label.
+ * Configured: large auto-sized name fills the button — no icon, easy to read.
+ */
+export function renderPlaylist(context) {
+    const canvas = createCanvas();
+    const ctx = canvas.getContext('2d');
+    const S = CANVAS.BUTTON_SIZE; // 144
+
+    ctx.fillStyle = COLORS.BLACK;
+    ctx.fillRect(0, 0, S, S);
+
+    const playbackState = state.playbackState;
+    const isPaused  = playbackState === 'paused';
+    const isStopped = playbackState === 'stopped';
+    const isDimmed  = isPaused || isStopped;
+    const accentColor = isDimmed
+        ? (isStopped ? COLORS.DARK_GRAY : COLORS.MEDIUM_GRAY)
+        : getAccentColor();
+    const settings = state.getActionSettings(context) || {};
+    const playlistName = settings.playlistName || null;
+
+    // ── Empty state: icon + "PLAYLIST" label ──────────────────────
+    if (!playlistName) {
+        // Symmetrical layout: icon block + label, 3 equal gaps
+        const iconH   = 46;
+        const labelSz = 18;
+        const gap = (S - (iconH + labelSz)) / 3;
+
+        const iconTop = gap;
+        const labelY  = gap + iconH + gap + labelSz / 2;
+
+        // 3-row Plexamp dot+bar list icon
+        const rows = 3;
+        const rowH = iconH / rows;
+        const dotR = 4;
+        const dotX = 28;
+        const barX0 = dotX + dotR + 8;
+        const barX1 = 116;
+
+        ctx.fillStyle   = COLORS.MEDIUM_GRAY;
+        ctx.strokeStyle = COLORS.MEDIUM_GRAY;
+        ctx.lineWidth   = 4;
+        ctx.lineCap     = 'round';
+
+        for (let i = 0; i < rows; i++) {
+            const rowY = iconTop + (i + 0.5) * rowH;
+            ctx.beginPath();
+            ctx.arc(dotX, rowY, dotR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(barX0, rowY);
+            ctx.lineTo(barX1, rowY);
+            ctx.stroke();
+        }
+
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font         = `bold ${labelSz}px sans-serif`;
+        ctx.fillStyle    = COLORS.MEDIUM_GRAY;
+        ctx.fillText('PLAYLIST', S / 2, labelY);
+
+        sendImage(context, canvas.toDataURL('image/png'));
+        return;
+    }
+
+    // ── Configured state: single line if it fits, else smart 2-line wrap ──
+    const maxW    = S - 16;  // 8px padding each side
+    const maxFont = 36;
+    const minFont = 14;
+    const mw = t => ctx.measureText(t).width;
+
+    // Step 1: full name fits on one line at max font — simplest case
+    ctx.font = `bold ${maxFont}px sans-serif`;
+    if (mw(playlistName) <= maxW) {
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = accentColor;
+        ctx.fillText(playlistName, S / 2, S / 2);
+        sendImage(context, canvas.toDataURL('image/png'));
+        return;
+    }
+
+    // Step 2: try 2-line word-wrap — find largest font where any clean split exists,
+    //         then pick the most balanced (equal-width) split at that font size
+    const words = playlistName.split(' ');
+    let bestFont = 0, bestLines = null;
+
+    if (words.length >= 2) {
+        for (let fs = maxFont; fs >= minFont; fs--) {
+            ctx.font = `bold ${fs}px sans-serif`;
+            let bestSplit = null, bestDiff = Infinity;
+            for (let split = 1; split < words.length; split++) {
+                const l1 = words.slice(0, split).join(' ');
+                const l2 = words.slice(split).join(' ');
+                if (mw(l1) <= maxW && mw(l2) <= maxW) {
+                    const diff = Math.abs(mw(l1) - mw(l2));
+                    if (diff < bestDiff) { bestDiff = diff; bestSplit = split; }
+                }
+            }
+            if (bestSplit !== null) {
+                bestFont  = fs;
+                bestLines = [
+                    words.slice(0, bestSplit).join(' '),
+                    words.slice(bestSplit).join(' ')
+                ];
+                break;
+            }
+        }
+    }
+
+    if (bestLines) {
+        const lineH  = bestFont * 1.25;
+        const blockH = 2 * lineH;
+        const startY = (S - blockH) / 2 + lineH / 2;
+
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = accentColor;
+        bestLines.forEach((line, i) => ctx.fillText(line, S / 2, startY + i * lineH));
+        sendImage(context, canvas.toDataURL('image/png'));
+        return;
+    }
+
+    // Step 3: last resort — single line shrunk + smart ellipsis (single long word, etc.)
+    let fontSize = maxFont;
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    while (fontSize > minFont && mw(playlistName) > maxW) {
+        fontSize--;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+    }
+
+    let displayText = playlistName;
+    if (mw(displayText) > maxW) {
+        // word-level: drop trailing words
+        displayText = '';
+        for (let i = words.length - 1; i >= 1; i--) {
+            const candidate = words.slice(0, i).join(' ') + '\u2026';
+            if (mw(candidate) <= maxW) { displayText = candidate; break; }
+        }
+        // char-level fallback
+        if (!displayText) {
+            displayText = playlistName;
+            while (displayText.length > 1 && mw(displayText + '\u2026') > maxW) {
+                displayText = displayText.slice(0, -1);
+            }
+            displayText = displayText.trimEnd() + '\u2026';
+        }
+    }
+
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = accentColor;
+    ctx.fillText(displayText, S / 2, S / 2);
+
+    sendImage(context, canvas.toDataURL('image/png'));
+}
+
+/**
  * Send image to Stream Deck
  */
 function sendImage(context, dataUrl) {
@@ -735,5 +896,6 @@ export default {
     renderShuffle,
     renderRepeat,
     renderVolumeUp,
-    renderVolumeDown
+    renderVolumeDown,
+    renderPlaylist
 };

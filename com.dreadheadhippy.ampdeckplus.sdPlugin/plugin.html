@@ -6,5 +6,16 @@
 </head>
 <body>
     <script src="plugin.js"></script>
+    <script>
+        // When Stream Deck is restored from the system tray, the page becomes
+        // visible again — immediately trigger a fresh poll to unfreeze the display.
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                if (typeof window.pollTimeline === 'function') {
+                    window.pollTimeline();
+                }
+            }
+        });
+    </script>
 </body>
 </html>

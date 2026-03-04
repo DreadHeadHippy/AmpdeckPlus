@@ -18,6 +18,10 @@ import layoutManager from './ui/layoutManager.js';
 // Connection manager
 let connection = null;
 
+// Polling health tracking
+let isPollingInFlight = false;
+let lastSuccessfulPoll = 0;
+
 // ============================================
 // STREAM DECK CONNECTION
 // ============================================
@@ -35,6 +39,9 @@ function connectElgatoStreamDeckSocket(inPort, inPluginUUID, inRegisterEvent, _i
     // Store connection manager in state so renderers always use the current socket
     state.pluginUUID = inPluginUUID;
     state.connection = connection;
+
+    // Give logger access to the connection so it can write to Stream Deck's log file
+    logger.setConnection(connection);
 }
 
 /**
@@ -66,6 +73,9 @@ function handleStreamDeckMessage(data) {
         case 'dialDown':
             onDialDown(data);
             break;
+        case 'dialUp':
+            onDialUp(data);
+            break;
         case 'touchTap':
             onTouchTap(data);
             break;
@@ -94,6 +104,11 @@ function onWillAppear(data) {
     applySettingsToGlobal(settings);
     startPolling();
     
+    // Load playlists into carousel state if in playlists display mode
+    if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
+        loadCarouselPlaylists(context);
+    }
+
     // Initial render
     updateDisplay(context);
     
@@ -133,6 +148,19 @@ function onDidReceiveGlobalSettings(data) {
     // Start polling if configured
     if (settings.plexToken && settings.plexServerUrl) {
         pollTimeline();
+
+        // Load playlists for any carousel strips that appeared before the connection was ready
+        state.getAllContexts().forEach(context => {
+            const actionData = state.getAction(context);
+            if (!actionData) return;
+            if (actionData.action !== ACTIONS.STRIP) return;
+            const actionSettings = state.getActionSettings(context) || {};
+            if (actionSettings.displayMode !== 'playlists') return;
+            const existing = state.getCarouselState(context);
+            if (!existing || existing.playlists.length === 0) {
+                loadCarouselPlaylists(context);
+            }
+        });
     }
 }
 
@@ -147,6 +175,12 @@ function onDidReceiveSettings(data) {
     // Reset layout to force refresh
     state.lastLayoutState[context] = null;
     
+    // Reload playlist carousel if mode changed to playlists
+    const action = state.getAction(context)?.action;
+    if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
+        loadCarouselPlaylists(context);
+    }
+
     updateDisplayPosition();
     updateAllDisplays();
     
@@ -295,9 +329,21 @@ function onDialRotate(data) {
     const ticks = payload.ticks || 0;
     
     if (!action || action !== ACTIONS.STRIP) return;
-    
+    if (state.playbackState === 'stopped') return; // Plexamp not running — ignore all dial input
+
     const dialAction = settings.dialAction || 'none';
-    
+
+    // Playlist carousel mode: dial rotation navigates the list
+    if (settings.displayMode === 'playlists') {
+        const carousel = state.getCarouselState(context);
+        if (!carousel || carousel.playlists.length === 0) return;
+        const total = carousel.playlists.length;
+        carousel.index = ((carousel.index + ticks) % total + total) % total;
+        state.setCarouselState(context, carousel);
+        layoutManager.renderStripLayout(context);
+        return;
+    }
+
     // Handle dial rotation based on user's configured action
     if (dialAction === 'skip') {
         if (ticks > 0) {
@@ -351,8 +397,43 @@ function onDialDown(data) {
     const { context } = data;
     const action = state.getAction(context)?.action;
     
-    if (action === ACTIONS.STRIP) {
-        playbackController.togglePlayPause();
+    if (action !== ACTIONS.STRIP) return;
+
+    const settings = state.getActionSettings(context) || {};
+
+    if (settings.displayMode === 'playlists') {
+        if (state.playbackState === 'stopped') return; // Plexamp not running
+        // Record press; onDialUp will fire the play action
+        state.dialHoldState[context] = { pressTime: Date.now() };
+        return;
+    }
+
+    playbackController.togglePlayPause();
+}
+
+function onDialUp(data) {
+    const { context } = data;
+    const action = state.getAction(context)?.action;
+    
+    if (action !== ACTIONS.STRIP) return;
+
+    const settings = state.getActionSettings(context) || {};
+
+    if (settings.displayMode === 'playlists') {
+        delete state.dialHoldState[context];
+
+        if (state.playbackState === 'stopped') return; // Plexamp not running
+
+        // Press: play the currently highlighted playlist
+        const carousel = state.getCarouselState(context);
+        if (!carousel || carousel.playlists.length === 0) return;
+
+        const playlist = carousel.playlists[carousel.index];
+        if (!playlist?.ratingKey) return;
+
+        state.currentPlaylistName = playlist.title;
+        playbackController.playPlaylist(playlist.ratingKey);
+        layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
     }
 }
 
@@ -363,6 +444,7 @@ function onTouchTap(data) {
     if (action !== ACTIONS.STRIP) return;
     
     // Tap anywhere on touch strip to play/pause
+    if (state.playbackState === 'stopped') return; // Plexamp not running
     playbackController.togglePlayPause();
 }
 
@@ -452,6 +534,16 @@ async function handleButtonAction(action, context) {
             await playbackController.setVolume(newVol);
             break;
         }
+        case ACTIONS.PLAYLIST: {
+            const playlistSettings = state.getActionSettings(context) || {};
+            const ratingKey = playlistSettings.playlistRatingKey;
+            if (!ratingKey) {
+                logger.warn('Playlist button pressed but no playlist configured');
+                break;
+            }
+            await playbackController.playPlaylist(ratingKey);
+            break;
+        }
     }
     
     // Update displays after action
@@ -462,17 +554,41 @@ async function handleButtonAction(action, context) {
 // SETTINGS MANAGEMENT
 // ============================================
 
-function applySettingsToGlobal(settings) {
-    // Only propagate connection settings from per-action settings.
-    // Display preferences (dynamicColors, textColor, debugMode, syncOffset) must
-    // only flow from didReceiveGlobalSettings — propagating them here causes any
-    // action with stale per-action settings to silently overwrite the correct
-    // global value (e.g. re-enabling dynamic colors after the user unchecked it).
-    if (settings.plexServerUrl) state.updateGlobalSettings({ plexServerUrl: settings.plexServerUrl });
-    if (settings.plexToken) state.updateGlobalSettings({ plexToken: settings.plexToken });
-    if (settings.clientName) state.updateGlobalSettings({ clientName: settings.clientName });
-    if (settings.playerUrl) state.updateGlobalSettings({ playerUrl: settings.playerUrl });
+/**
+ * Fetch audio playlists from Plex and store in carousel state for a dial context
+ */
+async function loadCarouselPlaylists(context) {
+    // Initialize with empty state so the strip shows "Loading..."
+    if (!state.getCarouselState(context)) {
+        state.setCarouselState(context, { playlists: [], index: 0 });
+    }
+    // Clear poster cache so fresh art is fetched for the new playlist list
+    layoutManager.clearCarouselPosterCache();
+    layoutManager.renderStripLayout(context);
 
+    try {
+        const playlists = await plexConnection.fetchPlaylists();
+        const existing = state.getCarouselState(context) || { index: 0 };
+        const clamped = Math.min(existing.index, Math.max(0, playlists.length - 1));
+        state.setCarouselState(context, { playlists, index: clamped });
+        logger.info(`Carousel loaded ${playlists.length} playlists for context`);
+    } catch (err) {
+        logger.warn(`Failed to load carousel playlists: ${err.message}`);
+        state.setCarouselState(context, { playlists: [], index: 0 });
+    }
+
+    // Trigger a re-render with the loaded data
+    state.lastLayoutState[context] = null;
+    layoutManager.renderStripLayout(context);
+}
+
+function applySettingsToGlobal(_settings) {
+    // Connection settings (plexServerUrl, plexToken, clientName, playerUrl) and
+    // display preferences (dynamicColors, textColor, debugMode, syncOffset) must
+    // only flow from didReceiveGlobalSettings. Per-action settings can hold stale
+    // or inconsistent values (e.g. localhost vs LAN IP saved on different buttons)
+    // and whichever button loads last would silently overwrite the correct global
+    // value. Global settings are the single authoritative source for all of these.
     updateLogLevel();
     configurePlexConnection();
 }
@@ -532,8 +648,11 @@ function stopPolling() {
 }
 
 async function pollTimeline() {
+    if (isPollingInFlight) return;
+    isPollingInFlight = true;
     try {
         const timeline = await plexConnection.fetchTimeline();
+        lastSuccessfulPoll = Date.now();
         
         if (timeline && timeline.state !== 'stopped') {
             metadataCache.updateFromTimeline(timeline);
@@ -542,10 +661,21 @@ async function pollTimeline() {
         }
     } catch (error) {
         logger.debug(`Timeline poll failed: ${error.message}`);
+    } finally {
+        isPollingInFlight = false;
     }
 }
 
 function renderTick() {
+    // Watchdog: if polling has gone silent for 10s, restart the cycle
+    if (lastSuccessfulPoll > 0 && (Date.now() - lastSuccessfulPoll) > 10000) {
+        logger.debug('Poll watchdog triggered — restarting poll cycle');
+        lastSuccessfulPoll = Date.now(); // Reset to avoid repeated triggers
+        isPollingInFlight = false;       // Clear any stuck in-flight flag
+        stopPolling();
+        startPolling();
+        return;
+    }
     updateDisplayPosition();
     updateAllDisplays();
 }
@@ -630,6 +760,9 @@ function updateDisplay(context) {
         case ACTIONS.VOLUME_DOWN:
             buttonRenderer.renderVolumeDown(context);
             break;
+        case ACTIONS.PLAYLIST:
+            buttonRenderer.renderPlaylist(context);
+            break;
     }
 }
 
@@ -642,4 +775,5 @@ logger.info(`Ampdeck+ v${VERSION} module loaded`);
 // Expose globally for Stream Deck
 if (typeof window !== 'undefined') {
     window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+    window.pollTimeline = pollTimeline;
 }

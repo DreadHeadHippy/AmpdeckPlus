@@ -21,7 +21,8 @@ export const ACTIONS = {
     REPEAT: 'com.dreadheadhippy.ampdeckplus.repeat',
     STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
     VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
-    VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down'
+    VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down',
+    PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist'
 };
 
 // Timing constants

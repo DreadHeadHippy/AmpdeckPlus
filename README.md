@@ -27,26 +27,11 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.4
+## ⚡ What's New in v2.0.5
 
-- **🐛 Dynamic accent color setting no longer resets on song change** — Unchecking "Dynamic accent colors from album art" would revert to dynamic after the next track change. Display preferences are now exclusively read from global settings, preventing any per-action settings from overwriting them.
-- **🐛 Plugin no longer goes stale after sleep or Stream Deck tray minimize** — Added the `systemDidWakeUp` SDK event handler to restart the poll cycle on OS wake, preventing stale album art and track info after the system resumes.
-
-<details>
-<summary>Previous release — v2.0.3</summary>
-
-- **🐛 Buttons no longer go stale after Stream Deck minimize to tray** — After reconnecting, the plugin was holding a stale reference to the original closed WebSocket. Album art, track info, and all button renders would freeze on the last displayed state and never update again until a full Stream Deck restart. This is now fixed.
-
-</details>
-
-<details>
-<summary>v2.0.2</summary>
-
-- **🔊 Volume Up & Volume Down buttons** — Two new dedicated key actions each featuring a canvas-drawn speaker icon. The icon fills from the bottom with the dynamic album art accent color proportional to the current volume — 50% volume fills the bottom half, 100% fills the whole icon including the `+`/`−` badge.
-- **🔇 Long-press mute on Volume Down** — Hold the Volume Down button for 400ms to instantly mute Plexamp. Hold again to restore to the previous volume level.
-- **🐛 Volume display fixes** — Fixed volume snapping back to 50% when at 0% (falsy `||` bug), eliminated race condition where rapid presses or timeline polls could overwrite a pending volume command with a stale server value.
-
-</details>
+- **🎵 Playlist button & touch strip carousel** — Browse and play your Plex playlists directly from Stream Deck. A new **Playlist** button action let's you assign a playlist to a key. A new **Playlist Carousel** strip action displays your playlists in a scrollable poster or text view on the touch strip — rotate the dial to browse, press to queue and play. Use the **Load Playlists** button in the action settings to populate your playlist library.
+- **🐛 Plugin no longer freezes album art and track info mid-session** — Four separate fixes working together: the timeline poll now uses `wait=0` so requests return immediately instead of holding open connections; an in-flight guard prevents concurrent poll requests from piling up; a 10-second stale watchdog in the render loop automatically restarts the poll cycle if data stops flowing; and a `visibilitychange` listener fires an immediate poll when Stream Deck is restored from the system tray.
+- **🐛 Buttons and strip no longer stay bright when Plexamp is closed** — All button renders and touch strip panels previously only dimmed when playback was paused, remaining fully illuminated when Plexamp wasn't running. All renderers now treat stopped (Plexamp closed) the same as paused — album art gets a gray overlay, icons and text mute to dark gray — and all dial and touch inputs are blocked until Plexamp is open again.
 
 📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 
@@ -55,6 +40,8 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ## Features
 
 - **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause. When playback is paused, the album art displays with a gray overlay.
+- **Playlist Button** — Dedicated key action showing the active playlist. Tap to cycle through your Plex playlists and queue them for playback.
+- **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Load your playlists from the action settings.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability.
 - **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
 - **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
@@ -129,11 +116,13 @@ That's it. Stream Deck handles the rest.
 ## Updating
 
 **Windows:**
+
 1. Close Stream Deck completely (right-click system tray icon → Quit)
 2. Download `install.bat` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
 3. Double-click `install.bat`
 
 **macOS:**
+
 1. Close Stream Deck completely (menu bar icon → Quit)
 2. Download `install.sh` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
 3. Run `chmod +x install.sh && ./install.sh`
@@ -225,11 +214,13 @@ If something isn't working, enable **Debug Logging** in the Advanced section of 
 Copy the `com.dreadheadhippy.ampdeckplus.sdPlugin` folder to:
 
 **Windows:**
+
 ```
 %APPDATA%\Elgato\StreamDeck\Plugins\
 ```
 
 **macOS:**
+
 ```
 ~/Library/Application Support/com.elgato.StreamDeck/Plugins/
 ```

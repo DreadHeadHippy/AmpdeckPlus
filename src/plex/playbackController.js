@@ -236,6 +236,44 @@ class PlaybackController {
         
         await this.setRating(newRating);
     }
+
+    /**
+     * Start playing an audio playlist by its ratingKey.
+     * Creates a server-side playQueue then issues a playMedia command to the player.
+     *
+     * @param {string} ratingKey - Plex ratingKey of the playlist
+     */
+    async playPlaylist(ratingKey) {
+        if (!ratingKey) {
+            logger.warn('playPlaylist called with no ratingKey');
+            return;
+        }
+
+        try {
+            // Step 1: create a playQueue on the server
+            const playQueueID = await plexConnection.createPlayQueue(ratingKey);
+            const serverMachineId = await plexConnection.fetchServerMachineId();
+
+            // Derive address + port from serverUrl, e.g. http://192.168.1.100:32400
+            const serverUrl = new URL(plexConnection.serverUrl);
+            const address = serverUrl.hostname;
+            const port = serverUrl.port || '32400';
+
+            // Step 2: instruct the player to play the queue
+            await plexConnection.playerCommand('/player/playback/playMedia', {
+                key: `/playlists/${ratingKey}/items`,
+                containerKey: `/playQueues/${playQueueID}`,
+                machineIdentifier: serverMachineId,
+                address,
+                port,
+                token: plexConnection.token
+            });
+
+            logger.info(`Playing playlist ${ratingKey} via queue ${playQueueID}`);
+        } catch (error) {
+            logger.error(`Failed to play playlist: ${error.message}`);
+        }
+    }
 }
 
 // Singleton instance

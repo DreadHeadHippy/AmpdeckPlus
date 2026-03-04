@@ -12,6 +12,7 @@ class PlexConnection {
         this.playerUrl = PLEX.DEFAULT_PLAYER_URL;
         this.serverUrl = null;
         this.token = null;
+        this._serverMachineId = null;
     }
 
     /**
@@ -20,6 +21,7 @@ class PlexConnection {
     configure(serverUrl, token, playerUrl = null) {
         this.serverUrl = serverUrl;
         this.token = token;
+        this._serverMachineId = null; // reset cache when server URL changes
         if (playerUrl) {
             this.playerUrl = playerUrl;
         }
@@ -159,7 +161,8 @@ class PlexConnection {
 
         const params = new URLSearchParams({
             commandID: state.getNextCommandID(),
-            'X-Plex-Token': this.token
+            'X-Plex-Token': this.token,
+            wait: 0
         });
 
         const url = `${this.playerUrl}/player/timeline/poll?${params.toString()}`;
@@ -336,6 +339,149 @@ class PlexConnection {
         } catch (error) {
             logger.error(`Failed to fetch album track count: ${error.message}`);
             return null;
+        }
+    }
+    /**
+     * Get (and cache) the Plex server's own machineIdentifier.
+     * Fetched from the server root endpoint the first time it is needed.
+     */
+    async fetchServerMachineId() {
+        if (this._serverMachineId) return this._serverMachineId;
+
+        if (!this.serverUrl || !this.token) {
+            throw new Error('Server not configured');
+        }
+
+        const url = `${this.serverUrl}/?X-Plex-Token=${this.token}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const response = await fetch(url, {
+                headers: this.createHeaders(true),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const root = doc.querySelector('MediaContainer');
+            const id = root?.getAttribute('machineIdentifier');
+
+            if (!id) throw new Error('machineIdentifier not found in server response');
+
+            this._serverMachineId = id;
+            logger.debug(`Server machineIdentifier: ${id}`);
+            return id;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            logger.error(`Failed to fetch server machineIdentifier: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Fetch list of audio playlists from the Plex server.
+     * Returns an array of { ratingKey, title, leafCount } objects.
+     */
+    async fetchPlaylists() {
+        if (!this.serverUrl || !this.token) {
+            throw new Error('Server not configured');
+        }
+
+        const url = `${this.serverUrl}/playlists?playlistType=audio&X-Plex-Token=${this.token}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const response = await fetch(url, {
+                headers: this.createHeaders(true),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const items = doc.querySelectorAll('Playlist');
+
+            return Array.from(items).map(item => ({
+                ratingKey: item.getAttribute('ratingKey'),
+                title: item.getAttribute('title'),
+                leafCount: parseInt(item.getAttribute('leafCount')) || 0,
+                compositePath: item.getAttribute('thumb') || item.getAttribute('composite') || null
+            }));
+        } catch (error) {
+            logger.error(`Failed to fetch playlists: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a playQueue on the server from a playlist ratingKey.
+     * Returns the playQueueID string.
+     */
+    async createPlayQueue(ratingKey) {
+        const machineId = await this.fetchServerMachineId();
+        const uri = `server://${machineId}/com.plexapp.plugins.library/playlists/${ratingKey}`;
+
+        if (!this.serverUrl || !this.token) {
+            throw new Error('Server not configured');
+        }
+
+        const params = new URLSearchParams({
+            type: 'audio',
+            uri,
+            shuffle: 0,
+            repeat: 0,
+            'X-Plex-Token': this.token
+        });
+
+        const url = `${this.serverUrl}/playQueues?${params.toString()}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: this.createHeaders(true),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const container = doc.querySelector('MediaContainer');
+            const playQueueID = container?.getAttribute('playQueueID');
+
+            if (!playQueueID) throw new Error('playQueueID not found in response');
+
+            logger.debug(`Created playQueue ${playQueueID} for playlist ${ratingKey}`);
+            return playQueueID;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            logger.error(`Failed to create playQueue: ${error.message}`);
+            throw error;
         }
     }
 }

@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.5] - 2026-03-03
+
+### ✨ New Features
+- **Playlist button** — New key action that displays the currently active Plex playlist on an LCD key. Tap to browse playlists.
+- **Playlist Carousel** — New touch strip action that shows your Plex playlists in a scrollable view (poster art or text mode). Rotate the dial to browse, press to queue and play the selected playlist. Use the **Load Playlists** button in the action settings to populate your playlist library.
+
+### 🐛 Bug Fixes
+- **Buttons and strip stay bright when Plexamp is closed** — All button renderers and touch strip panels only dimmed on pause, remaining fully lit when Plexamp wasn't running (`stopped` state). All renderers now treat `stopped` identically to `paused`: album art gets a gray overlay, icons and text shift to dark gray, and all dial and touch inputs are blocked until Plexamp is running again.
+- **"PLAYING" overlay overwritten by stale poster render** — Pressing the playlist carousel dial to queue a playlist showed a "PLAYING" confirmation overlay that could be immediately replaced by an in-flight async poster image load completing milliseconds later, writing directly to the touch strip and erasing the overlay. An overlay guard inside the async render callback now discards the render if an overlay is already active.
+- **Plugin freezes album art and track info mid-session** — Four compounding issues fixed together:
+  - **`wait=0` on timeline poll** — Plexamp's `/player/timeline/poll` endpoint holds the connection open until a state change when `wait` is omitted. Combined with a 1-second poll interval and 5-second timeout, up to 5 concurrent hanging requests could pile up. Adding `wait=0` makes each poll fire-and-return immediately.
+  - **In-flight guard** — Added `isPollingInFlight` flag; if a `pollTimeline()` call is still awaiting a response, subsequent worker ticks skip instead of launching another concurrent fetch.
+  - **10-second stale watchdog** — `renderTick()` (200ms interval) now tracks `lastSuccessfulPoll`. If no successful poll has completed in 10 seconds, the entire poll cycle is automatically restarted — silent self-healing without user intervention.
+  - **`visibilitychange` listener** — Added to `plugin.html` to fire an immediate `pollTimeline()` when Stream Deck is restored from the system tray, covering the gap where CEF throttles network activity for hidden pages.
+- **Connection settings overwritten by stale per-action values** — Connection settings (`plexServerUrl`, `plexToken`, `playerUrl`, `clientName`) were being propagated from each button's per-action settings into global state on every `willAppear` event — the same class of bug fixed for display preferences in v2.0.4. With multiple buttons on the deck, whichever fired last won: a button with `localhost:32500` saved from a previous config could silently replace a correctly configured remote server address, causing HTTP 401 errors on all server metadata calls until Stream Deck was restarted. `applySettingsToGlobal` no longer propagates any settings; `didReceiveGlobalSettings` is now the sole authoritative source for all connection and display configuration.
+
+---
+
 ## [2.0.4] - 2026-03-01
 
 ### 🐛 Bug Fixes

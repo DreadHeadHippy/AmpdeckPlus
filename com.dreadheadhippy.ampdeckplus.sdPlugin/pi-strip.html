@@ -111,8 +111,18 @@
             <option value="album">Album</option>
             <option value="track">Track Title</option>
             <option value="time">Time (Elapsed / Total)</option>
+            <option value="playlists">Playlists (Carousel)</option>
         </select>
-        <div class="help-text">Choose what this dial section displays</div>
+        <div class="help-text">Choose what this dial section displays. Playlists mode: rotate to browse, press to play.</div>
+    </div>
+
+    <div class="sdpi-item" id="carouselStyleContainer" style="display: none;">
+        <label>Playlist Style</label>
+        <select id="carouselStyle">
+            <option value="text">Text Only</option>
+            <option value="poster">3-Up Poster Carousel</option>
+        </select>
+        <div class="help-text">Text Only: scrolling playlist name. 3-Up Poster: artwork browser with name bar and progress bar.</div>
     </div>
     
     <div class="sdpi-item">
@@ -137,7 +147,7 @@
             <option value="volume">Rotate: Volume, Press: Play/Pause</option>
             <option value="rating">Rotate: Star Rating, Press: Play/Pause</option>
         </select>
-        <div class="help-text">What the physical dial does when rotated</div>
+        <div class="help-text" id="dialActionHelp">What the physical dial does when rotated</div>
     </div>
 
     <div class="sdpi-item" id="ratingModeContainer" style="display: none;">
@@ -156,7 +166,7 @@
             <option value="shuffle">Toggle Shuffle</option>
             <option value="repeat">Cycle Repeat</option>
         </select>
-        <div class="help-text">What happens when the dial is pressed</div>
+        <div class="help-text" id="dialPressActionHelp">What happens when the dial is pressed</div>
     </div>
 
     <div class="sdpi-heading">Progress Bar</div>
@@ -278,9 +288,11 @@
             document.getElementById('clientName').value = settings.clientName || '';
             document.getElementById('syncOffset').value = settings.syncOffset !== undefined ? settings.syncOffset : 0;
             document.getElementById('debugMode').checked = settings.debugMode === true;
+            document.getElementById('carouselStyle').value = settings.carouselStyle || 'text';
             
-            // Show/hide rating mode based on dial action
+            // Show/hide conditional sections
             updateRatingModeVisibility();
+            updateCarouselStyleVisibility();
 
             websocket = new WebSocket('ws://127.0.0.1:' + inPort);
             
@@ -316,6 +328,28 @@
             const dialAction = document.getElementById('dialAction').value;
             const ratingModeContainer = document.getElementById('ratingModeContainer');
             ratingModeContainer.style.display = (dialAction === 'rating') ? 'block' : 'none';
+        }
+
+        function updateCarouselStyleVisibility() {
+            const isPlaylists = document.getElementById('displayMode').value === 'playlists';
+            document.getElementById('carouselStyleContainer').style.display = isPlaylists ? 'block' : 'none';
+
+            // Lock dial controls in playlists mode — carousel handles rotate/press itself
+            const dialAction = document.getElementById('dialAction');
+            const dialPressAction = document.getElementById('dialPressAction');
+            const ratingModeContainer = document.getElementById('ratingModeContainer');
+            dialAction.disabled = isPlaylists;
+            dialPressAction.disabled = isPlaylists;
+            dialAction.style.opacity = isPlaylists ? '0.4' : '';
+            dialPressAction.style.opacity = isPlaylists ? '0.4' : '';
+            document.getElementById('dialActionHelp').textContent = isPlaylists
+                ? 'Locked — rotate browses playlists, press plays selection'
+                : 'What the physical dial does when rotated';
+            document.getElementById('dialPressActionHelp').textContent = isPlaylists
+                ? 'Locked — press plays the selected playlist'
+                : 'What happens when the dial is pressed';
+            if (isPlaylists) ratingModeContainer.style.display = 'none';
+            else updateRatingModeVisibility();
         }
 
         function validateUrl(url, allowLocalHttp) {
@@ -360,6 +394,7 @@
             
             const settings = {
                 displayMode: document.getElementById('displayMode').value,
+                carouselStyle: document.getElementById('carouselStyle').value,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
                 ratingMode: document.getElementById('ratingMode').value,
@@ -406,7 +441,11 @@
             statusEl.textContent = message;
         }
 
-        document.getElementById('displayMode').addEventListener('change', saveSettings);
+        document.getElementById('displayMode').addEventListener('change', function() {
+            updateCarouselStyleVisibility();
+            saveSettings();
+        });
+        document.getElementById('carouselStyle').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
         document.getElementById('dialAction').addEventListener('change', function() {
             updateRatingModeVisibility();

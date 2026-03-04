@@ -6,7 +6,7 @@
   "Name": "Ampdeck+",
   "Icon": "imgs/plugin-icon",
   "URL": "https://github.com/DreadHeadHippy/Ampdeckplus",
-  "Version": "2.0.4.0",
+  "Version": "2.0.5.0",
   "Category": "Ampdeck+",
   "CategoryIcon": "imgs/category-icon",
   "OS": [
@@ -199,6 +199,20 @@
       "SupportedInMultiActions": true,
       "Tooltip": "Decrease volume by 5%",
       "UUID": "com.dreadheadhippy.ampdeckplus.volume-down",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/playlist-icon",
+      "Name": "Play Playlist",
+      "States": [
+        {
+          "Image": "imgs/playlist-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Press to start playing the configured Plex audio playlist",
+      "UUID": "com.dreadheadhippy.ampdeckplus.playlist",
       "PropertyInspectorPath": "pi.html"
     }
   ],

@@ -9,10 +9,15 @@ class Logger {
     constructor() {
         this.logs = [];
         this.currentLevel = LOG_LEVELS.INFO;
+        this.connection = null;
     }
 
     setLevel(level) {
         this.currentLevel = level;
+    }
+
+    setConnection(connection) {
+        this.connection = connection;
     }
 
     debug(msg, data) {
@@ -49,6 +54,13 @@ class Logger {
         }
 
         console.log(`[${levelName}]`, sanitized, data);
+
+        if (this.currentLevel === LOG_LEVELS.DEBUG && this.connection && this.connection.isConnected()) {
+            this.connection.send({
+                event: 'logMessage',
+                payload: { message: logEntry }
+            });
+        }
     }
 
     sanitizeMessage(msg) {

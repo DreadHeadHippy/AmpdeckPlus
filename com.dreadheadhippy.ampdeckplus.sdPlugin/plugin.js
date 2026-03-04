@@ -24,7 +24,8 @@
         REPEAT: 'com.dreadheadhippy.ampdeckplus.repeat',
         STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
         VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
-        VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down'
+        VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down',
+        PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist'
     };
 
     // Timing constants
@@ -64,6 +65,7 @@
         DEFAULT: '#E5A00D',            // Fallback accent color
         BLACK: '#000000',
         DARK_GRAY: '#333333',
+        MEDIUM_GRAY: '#777777',
         WHITE: '#FFFFFF'
     };
 
@@ -96,10 +98,15 @@
         constructor() {
             this.logs = [];
             this.currentLevel = LOG_LEVELS.INFO;
+            this.connection = null;
         }
 
         setLevel(level) {
             this.currentLevel = level;
+        }
+
+        setConnection(connection) {
+            this.connection = connection;
         }
 
         debug(msg, data) {
@@ -136,6 +143,13 @@
             }
 
             console.log(`[${levelName}]`, sanitized, data);
+
+            if (this.currentLevel === LOG_LEVELS.DEBUG && this.connection && this.connection.isConnected()) {
+                this.connection.send({
+                    event: 'logMessage',
+                    payload: { message: logEntry }
+                });
+            }
         }
 
         sanitizeMessage(msg) {
@@ -391,6 +405,11 @@
             // Pending operations
             this.ratingSaveTimer = null;
             this.pendingRatingContext = null;
+
+            // Playlist carousel state (per dial context)
+            this.carouselState = {};     // context -> { playlists: [], index: 0 }
+            this.dialHoldState = {};     // context -> { pressTime, didLongPress }
+            this.currentPlaylistName = null; // Name of the playlist currently playing (set by us)
         }
 
         // Action management
@@ -405,6 +424,8 @@
             delete this.stripScrollState[context];
             delete this.buttonHoldState[context];
             delete this.timeDisplayMode[context];
+            delete this.carouselState[context];
+            delete this.dialHoldState[context];
         }
 
         getAction(context) {
@@ -460,6 +481,7 @@
             this.dominantColor = "#E5A00D";
             this.currentRating = 0;
             this.userSetRatings = {};
+            this.currentPlaylistName = null;
         }
 
         // Playback position
@@ -511,6 +533,19 @@
 
         getStripOverlay(context) {
             return this.stripOverlays[context];
+        }
+
+        // Playlist carousel state
+        getCarouselState(context) {
+            return this.carouselState[context] || null;
+        }
+
+        setCarouselState(context, carouselData) {
+            this.carouselState[context] = carouselData;
+        }
+
+        clearCarouselState(context) {
+            delete this.carouselState[context];
         }
 
         // Time display mode
@@ -628,6 +663,7 @@
             this.playerUrl = PLEX.DEFAULT_PLAYER_URL;
             this.serverUrl = null;
             this.token = null;
+            this._serverMachineId = null;
         }
 
         /**
@@ -636,6 +672,7 @@
         configure(serverUrl, token, playerUrl = null) {
             this.serverUrl = serverUrl;
             this.token = token;
+            this._serverMachineId = null; // reset cache when server URL changes
             if (playerUrl) {
                 this.playerUrl = playerUrl;
             }
@@ -775,7 +812,8 @@
 
             const params = new URLSearchParams({
                 commandID: state.getNextCommandID(),
-                'X-Plex-Token': this.token
+                'X-Plex-Token': this.token,
+                wait: 0
             });
 
             const url = `${this.playerUrl}/player/timeline/poll?${params.toString()}`;
@@ -952,6 +990,149 @@
             } catch (error) {
                 logger.error(`Failed to fetch album track count: ${error.message}`);
                 return null;
+            }
+        }
+        /**
+         * Get (and cache) the Plex server's own machineIdentifier.
+         * Fetched from the server root endpoint the first time it is needed.
+         */
+        async fetchServerMachineId() {
+            if (this._serverMachineId) return this._serverMachineId;
+
+            if (!this.serverUrl || !this.token) {
+                throw new Error('Server not configured');
+            }
+
+            const url = `${this.serverUrl}/?X-Plex-Token=${this.token}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            try {
+                const response = await fetch(url, {
+                    headers: this.createHeaders(true),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const root = doc.querySelector('MediaContainer');
+                const id = root?.getAttribute('machineIdentifier');
+
+                if (!id) throw new Error('machineIdentifier not found in server response');
+
+                this._serverMachineId = id;
+                logger.debug(`Server machineIdentifier: ${id}`);
+                return id;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                logger.error(`Failed to fetch server machineIdentifier: ${error.message}`);
+                throw error;
+            }
+        }
+
+        /**
+         * Fetch list of audio playlists from the Plex server.
+         * Returns an array of { ratingKey, title, leafCount } objects.
+         */
+        async fetchPlaylists() {
+            if (!this.serverUrl || !this.token) {
+                throw new Error('Server not configured');
+            }
+
+            const url = `${this.serverUrl}/playlists?playlistType=audio&X-Plex-Token=${this.token}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            try {
+                const response = await fetch(url, {
+                    headers: this.createHeaders(true),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const items = doc.querySelectorAll('Playlist');
+
+                return Array.from(items).map(item => ({
+                    ratingKey: item.getAttribute('ratingKey'),
+                    title: item.getAttribute('title'),
+                    leafCount: parseInt(item.getAttribute('leafCount')) || 0,
+                    compositePath: item.getAttribute('thumb') || item.getAttribute('composite') || null
+                }));
+            } catch (error) {
+                logger.error(`Failed to fetch playlists: ${error.message}`);
+                throw error;
+            }
+        }
+
+        /**
+         * Create a playQueue on the server from a playlist ratingKey.
+         * Returns the playQueueID string.
+         */
+        async createPlayQueue(ratingKey) {
+            const machineId = await this.fetchServerMachineId();
+            const uri = `server://${machineId}/com.plexapp.plugins.library/playlists/${ratingKey}`;
+
+            if (!this.serverUrl || !this.token) {
+                throw new Error('Server not configured');
+            }
+
+            const params = new URLSearchParams({
+                type: 'audio',
+                uri,
+                shuffle: 0,
+                repeat: 0,
+                'X-Plex-Token': this.token
+            });
+
+            const url = `${this.serverUrl}/playQueues?${params.toString()}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: this.createHeaders(true),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const container = doc.querySelector('MediaContainer');
+                const playQueueID = container?.getAttribute('playQueueID');
+
+                if (!playQueueID) throw new Error('playQueueID not found in response');
+
+                logger.debug(`Created playQueue ${playQueueID} for playlist ${ratingKey}`);
+                return playQueueID;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                logger.error(`Failed to create playQueue: ${error.message}`);
+                throw error;
             }
         }
     }
@@ -1191,6 +1372,44 @@
             );
             
             await this.setRating(newRating);
+        }
+
+        /**
+         * Start playing an audio playlist by its ratingKey.
+         * Creates a server-side playQueue then issues a playMedia command to the player.
+         *
+         * @param {string} ratingKey - Plex ratingKey of the playlist
+         */
+        async playPlaylist(ratingKey) {
+            if (!ratingKey) {
+                logger.warn('playPlaylist called with no ratingKey');
+                return;
+            }
+
+            try {
+                // Step 1: create a playQueue on the server
+                const playQueueID = await plexConnection.createPlayQueue(ratingKey);
+                const serverMachineId = await plexConnection.fetchServerMachineId();
+
+                // Derive address + port from serverUrl, e.g. http://192.168.1.100:32400
+                const serverUrl = new URL(plexConnection.serverUrl);
+                const address = serverUrl.hostname;
+                const port = serverUrl.port || '32400';
+
+                // Step 2: instruct the player to play the queue
+                await plexConnection.playerCommand('/player/playback/playMedia', {
+                    key: `/playlists/${ratingKey}/items`,
+                    containerKey: `/playQueues/${playQueueID}`,
+                    machineIdentifier: serverMachineId,
+                    address,
+                    port,
+                    token: plexConnection.token
+                });
+
+                logger.info(`Playing playlist ${ratingKey} via queue ${playQueueID}`);
+            } catch (error) {
+                logger.error(`Failed to play playlist: ${error.message}`);
+            }
         }
     }
 
@@ -1446,15 +1665,15 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isPaused = state.playbackState === 'paused';
+        const isDimmed = state.playbackState !== 'playing';
 
         if (state.currentAlbumArt) {
             const img = new Image();
             img.onload = () => {
                 ctx.drawImage(img, 0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
                 
-                // Apply gray overlay when paused
-                if (isPaused) {
+                // Apply gray overlay when paused or stopped
+                if (isDimmed) {
                     ctx.fillStyle = 'rgba(128, 128, 128, 0.6)';
                     ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
                 }
@@ -1519,9 +1738,9 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isPaused = state.playbackState === 'paused';
-        const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor$1();
-        const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         if (state.currentTrack) {
             const media = state.currentTrack.Media?.[0];
@@ -1581,9 +1800,9 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isPaused = state.playbackState === 'paused';
-        const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor$1();
-        const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         // Symmetrical spacing: current time, duration, progress bar
         const timeSize = 42;
@@ -1667,9 +1886,9 @@
         const ratingMode = settings.ratingMode || "half";
         const displayStyle = settings.ratingDisplay || "stars";
         
-        const isPaused = state.playbackState === 'paused';
-        const textColor = isPaused ? COLORS.DARK_GRAY : getTextColor$1();
-        const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         if (state.currentTrack) {
             // Display "RATING" label at top
@@ -1731,10 +1950,10 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isPaused = state.playbackState === 'paused';
-        const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const isOn = state.currentShuffle === 1;
-        const iconColor = (isPaused || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+        const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
 
         // Crossing arrows
         ctx.strokeStyle = iconColor;
@@ -1792,10 +2011,10 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isPaused = state.playbackState === 'paused';
-        const accentColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const isOn = state.currentRepeat > 0;
-        const iconColor = (isPaused || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+        const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
 
         // Loop shape
         ctx.strokeStyle = iconColor;
@@ -1859,8 +2078,8 @@
 
         const settings = state.getActionSettings(context) || {};
         const iconSize = parseInt(settings.navigationIconSize) || 40;
-        const isPaused = state.playbackState === 'paused';
-        const iconColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         // Calculate animation offset (starts at center, moves left, wraps from right)
         let offsetX = 0;
@@ -1930,8 +2149,8 @@
 
         const settings = state.getActionSettings(context) || {};
         const iconSize = parseInt(settings.navigationIconSize) || 40;
-        const isPaused = state.playbackState === 'paused';
-        const iconColor = isPaused ? COLORS.DARK_GRAY : getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         // Calculate animation offset (starts at center, moves right, wraps from left)
         let offsetX = 0;
@@ -2019,7 +2238,8 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, S, S);
 
-        const accentColor = getAccentColor$1();
+        const isDimmed = state.playbackState !== 'playing';
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const volume = Math.max(0, Math.min(100, state.currentVolume ?? 50));
 
         // ── Speaker geometry ───────────────────────────────────────────
@@ -2114,6 +2334,166 @@
     }
 
     /**
+     * Render playlist button.
+     *
+     * Empty (no playlist set): dot+bar list icon + "PLAYLIST" label.
+     * Configured: large auto-sized name fills the button — no icon, easy to read.
+     */
+    function renderPlaylist(context) {
+        const canvas = createCanvas();
+        const ctx = canvas.getContext('2d');
+        const S = CANVAS.BUTTON_SIZE; // 144
+
+        ctx.fillStyle = COLORS.BLACK;
+        ctx.fillRect(0, 0, S, S);
+
+        const playbackState = state.playbackState;
+        const isPaused  = playbackState === 'paused';
+        const isStopped = playbackState === 'stopped';
+        const isDimmed  = isPaused || isStopped;
+        const accentColor = isDimmed
+            ? (isStopped ? COLORS.DARK_GRAY : COLORS.MEDIUM_GRAY)
+            : getAccentColor$1();
+        const settings = state.getActionSettings(context) || {};
+        const playlistName = settings.playlistName || null;
+
+        // ── Empty state: icon + "PLAYLIST" label ──────────────────────
+        if (!playlistName) {
+            // Symmetrical layout: icon block + label, 3 equal gaps
+            const iconH   = 46;
+            const labelSz = 18;
+            const gap = (S - (iconH + labelSz)) / 3;
+
+            const iconTop = gap;
+            const labelY  = gap + iconH + gap + labelSz / 2;
+
+            // 3-row Plexamp dot+bar list icon
+            const rows = 3;
+            const rowH = iconH / rows;
+            const dotR = 4;
+            const dotX = 28;
+            const barX0 = dotX + dotR + 8;
+            const barX1 = 116;
+
+            ctx.fillStyle   = COLORS.MEDIUM_GRAY;
+            ctx.strokeStyle = COLORS.MEDIUM_GRAY;
+            ctx.lineWidth   = 4;
+            ctx.lineCap     = 'round';
+
+            for (let i = 0; i < rows; i++) {
+                const rowY = iconTop + (i + 0.5) * rowH;
+                ctx.beginPath();
+                ctx.arc(dotX, rowY, dotR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(barX0, rowY);
+                ctx.lineTo(barX1, rowY);
+                ctx.stroke();
+            }
+
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font         = `bold ${labelSz}px sans-serif`;
+            ctx.fillStyle    = COLORS.MEDIUM_GRAY;
+            ctx.fillText('PLAYLIST', S / 2, labelY);
+
+            sendImage(context, canvas.toDataURL('image/png'));
+            return;
+        }
+
+        // ── Configured state: single line if it fits, else smart 2-line wrap ──
+        const maxW    = S - 16;  // 8px padding each side
+        const maxFont = 36;
+        const minFont = 14;
+        const mw = t => ctx.measureText(t).width;
+
+        // Step 1: full name fits on one line at max font — simplest case
+        ctx.font = `bold ${maxFont}px sans-serif`;
+        if (mw(playlistName) <= maxW) {
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle    = accentColor;
+            ctx.fillText(playlistName, S / 2, S / 2);
+            sendImage(context, canvas.toDataURL('image/png'));
+            return;
+        }
+
+        // Step 2: try 2-line word-wrap — find largest font where any clean split exists,
+        //         then pick the most balanced (equal-width) split at that font size
+        const words = playlistName.split(' ');
+        let bestFont = 0, bestLines = null;
+
+        if (words.length >= 2) {
+            for (let fs = maxFont; fs >= minFont; fs--) {
+                ctx.font = `bold ${fs}px sans-serif`;
+                let bestSplit = null, bestDiff = Infinity;
+                for (let split = 1; split < words.length; split++) {
+                    const l1 = words.slice(0, split).join(' ');
+                    const l2 = words.slice(split).join(' ');
+                    if (mw(l1) <= maxW && mw(l2) <= maxW) {
+                        const diff = Math.abs(mw(l1) - mw(l2));
+                        if (diff < bestDiff) { bestDiff = diff; bestSplit = split; }
+                    }
+                }
+                if (bestSplit !== null) {
+                    bestFont  = fs;
+                    bestLines = [
+                        words.slice(0, bestSplit).join(' '),
+                        words.slice(bestSplit).join(' ')
+                    ];
+                    break;
+                }
+            }
+        }
+
+        if (bestLines) {
+            const lineH  = bestFont * 1.25;
+            const blockH = 2 * lineH;
+            const startY = (S - blockH) / 2 + lineH / 2;
+
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle    = accentColor;
+            bestLines.forEach((line, i) => ctx.fillText(line, S / 2, startY + i * lineH));
+            sendImage(context, canvas.toDataURL('image/png'));
+            return;
+        }
+
+        // Step 3: last resort — single line shrunk + smart ellipsis (single long word, etc.)
+        let fontSize = maxFont;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        while (fontSize > minFont && mw(playlistName) > maxW) {
+            fontSize--;
+            ctx.font = `bold ${fontSize}px sans-serif`;
+        }
+
+        let displayText = playlistName;
+        if (mw(displayText) > maxW) {
+            // word-level: drop trailing words
+            displayText = '';
+            for (let i = words.length - 1; i >= 1; i--) {
+                const candidate = words.slice(0, i).join(' ') + '\u2026';
+                if (mw(candidate) <= maxW) { displayText = candidate; break; }
+            }
+            // char-level fallback
+            if (!displayText) {
+                displayText = playlistName;
+                while (displayText.length > 1 && mw(displayText + '\u2026') > maxW) {
+                    displayText = displayText.slice(0, -1);
+                }
+                displayText = displayText.trimEnd() + '\u2026';
+            }
+        }
+
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = accentColor;
+        ctx.fillText(displayText, S / 2, S / 2);
+
+        sendImage(context, canvas.toDataURL('image/png'));
+    }
+
+    /**
      * Send image to Stream Deck
      */
     function sendImage(context, dataUrl) {
@@ -2137,7 +2517,8 @@
         renderShuffle,
         renderRepeat,
         renderVolumeUp,
-        renderVolumeDown
+        renderVolumeDown,
+        renderPlaylist
     };
 
     /**
@@ -2145,6 +2526,9 @@
      * Handles touch strip layouts, scrolling text, and feedback
      */
 
+
+    // Cache of poster art dataUrls keyed by playlist ratingKey
+    const posterCache = new Map();
 
     /**
      * Get text color
@@ -2181,6 +2565,9 @@
      * Render touch strip layout
      */
     function renderStripLayout(context) {
+        // Never overwrite an active overlay regardless of caller
+        if (state.getStripOverlay(context)) return;
+
         const settings = state.getActionSettings(context);
         const displayMode = settings.displayMode || 'artist';
         const fontSize = parseInt(settings.fontSize) || 16;
@@ -2190,9 +2577,13 @@
         const textColor = settings.textColor || getTextColor();
         const accentColor = getAccentColor();
         const stripSecondary = getSecondaryColor(textColor);
+        const isDimmed = state.playbackState !== 'playing';
+        const effectiveAccent  = isDimmed ? stripSecondary : accentColor;
 
         let label = '', text = '';
-        if (state.currentTrack) {
+        if (displayMode === 'playlists') {
+            return renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary);
+        } else if (state.currentTrack) {
             if (displayMode === 'artist') {
                 label = 'ARTIST';
                 text = state.currentTrack.grandparentTitle || 'Unknown';
@@ -2212,11 +2603,10 @@
         }
 
         const labelSize = Math.max(14, Math.round(fontSize * 0.85));
-        const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, accentColor);
+        const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, effectiveAccent);
 
-        const pausedDim = state.playbackState === 'paused';
-        const labelColor = pausedDim ? stripSecondary : textColor;
-        const textDisplayColor = pausedDim ? stripSecondary : textColor;
+        const labelColor = isDimmed ? stripSecondary : textColor;
+        const textDisplayColor = isDimmed ? stripSecondary : textColor;
 
         // Always use pixmap for displayText for consistent rendering
         const textAreaH = fontSize + 8;
@@ -2263,6 +2653,298 @@
         }
 
         // Check if text needs scrolling
+        const font = `${fontSize}px sans-serif`;
+        const needsScroll = measureTextWidth(text, font) > 190;
+
+        let textImage;
+        if (needsScroll) {
+            textImage = renderScrollingText(context, text, fontSize, textDisplayColor);
+        } else {
+            if (state.stripScrollState[context]) {
+                delete state.stripScrollState[context];
+            }
+            textImage = renderStaticText(text, fontSize, textDisplayColor);
+        }
+
+        setFeedback(context, {
+            label: label,
+            displayText: textImage,
+            progressBar: progressBar
+        });
+    }
+
+    /**
+     * Render 3-up poster carousel: prev (dim) | current (highlighted) | next (dim)
+     */
+    function renderPlaylistCarouselPoster(context, carousel, accentColor) {
+        const layoutKey = 'carousel-3up';
+        if (state.lastLayoutState[context] !== layoutKey) {
+            state.lastLayoutState[context] = layoutKey;
+            setFeedbackLayout(context, {
+                id: 'com.dreadheadhippy.ampdeckplus.overlay',
+                items: [{ key: 'overlay', type: 'pixmap', rect: [0, 0, 200, 100] }]
+            });
+        }
+
+        if (!carousel || carousel.playlists.length === 0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 200, 100);
+            ctx.fillStyle = COLORS.WHITE;
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(carousel ? 'No Playlists' : 'Loading...', 100, 50);
+            setFeedback(context, { overlay: canvas.toDataURL('image/png') });
+            return;
+        }
+
+        const playlists = carousel.playlists;
+        const n = playlists.length;
+        const idx = carousel.index;
+        const prevIdx = (idx - 1 + n) % n;
+        const nextIdx = (idx + 1) % n;
+        const currentPlaylist = playlists[idx];
+        const prevPlaylist = n > 1 ? playlists[prevIdx] : null;
+        const nextPlaylist = n > 1 ? playlists[nextIdx] : null;
+
+        // Compute PROG_Y using the same formula as renderStripLayout so the progress
+        // bar aligns perfectly with adjacent text carousel tiles at any font size.
+        const _s = state.getActionSettings(context);
+        const _fs = parseInt(_s.fontSize) || 16;
+        const _ls = Math.max(14, Math.round(_fs * 0.85));
+        const _gap = (100 - (_ls + 4 + _fs + 8 + 4)) / 4;
+        const NAME_H = 12;
+        const PROG_Y = Math.round(_gap + (_ls + 4) + _gap + (_fs + 8) + _gap);
+        const PROG_H = 4;
+        const ART_Y = NAME_H;
+        const ART_H = PROG_Y - NAME_H; // art zone between name bar and progress bar
+        // Scale poster sizes proportionally to fit art zone (reference: CH=74, SH=50 at ART_H=84)
+        const _sc = ART_H / 84;
+        const CH = Math.max(Math.floor(74 * _sc), 28), CW = CH;
+        const SH = Math.max(Math.floor(50 * _sc), 18), SW = SH;
+        // Horizontal: 2 | SW | hGap | CW | hGap | SW | 2 = 200
+        const hGap = Math.floor((196 - SW - CW - SW) / 2);
+        const SX_L = 2, SX_R = 200 - 2 - SW;
+        const CX = SX_L + SW + hGap;
+        const SY = ART_Y + Math.round((ART_H - SH) / 2);
+        const CY = ART_Y + Math.round((ART_H - CH) / 2);
+
+        // Draw a poster image cover-fit into a clipped rect, or a placeholder
+        const drawPoster = (ctx, imgEl, x, y, w, h) => {
+            if (imgEl) {
+                const iw = imgEl.naturalWidth || w, ih = imgEl.naturalHeight || h;
+                const scale = Math.max(w / iw, h / ih);
+                const sw = iw * scale, sh = ih * scale;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(x, y, w, h);
+                ctx.clip();
+                ctx.drawImage(imgEl, x + (w - sw) / 2, y + (h - sh) / 2, sw, sh);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = '#2a2a2a';
+                ctx.fillRect(x, y, w, h);
+                ctx.save();
+                ctx.fillStyle = '#666666';
+                ctx.font = `bold ${Math.round(h * 0.45)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('\u266a', x + w / 2, y + h / 2);
+                ctx.restore();
+            }
+        };
+
+        // Resolve an image from cache, trigger async fetch if missing, call back immediately
+        const resolveImage = (playlist, callback) => {
+            if (!playlist) { callback(null); return; }
+            const key = playlist.ratingKey;
+            if (posterCache.has(key)) {
+                const url = posterCache.get(key);
+                if (url) {
+                    const img = new Image();
+                    img.onload = () => callback(img);
+                    img.src = url;
+                } else {
+                    callback(null);
+                }
+            } else {
+                callback(null); // Placeholder immediately
+                if (playlist.compositePath) {
+                    plexConnection.fetchAlbumArt(playlist.compositePath)
+                        .then(dataUrl => {
+                            posterCache.set(key, dataUrl);
+                            state.getAllContexts().forEach(ctx => {
+                                if (state.getCarouselState(ctx)) {
+                                    state.lastLayoutState[ctx] = null;
+                                    renderStripLayout(ctx);
+                                }
+                            });
+                        })
+                        .catch(() => posterCache.set(key, null));
+                } else {
+                    posterCache.set(key, null);
+                }
+            }
+        };
+
+        // Collect all 3 images then composite and send
+        let prevImg, currImg, nextImg;
+        let resolved = 0;
+        const tryDraw = () => {
+            if (++resolved < 3) return;
+
+            // An overlay (e.g. "PLAYING") may have been set while async image loads were in flight
+            if (state.getStripOverlay(context)) return;
+            const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+            const effectiveAccent = isDimmed ? COLORS.MEDIUM_GRAY : accentColor;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 200, 100);
+
+            // Side posters (draw then dim)
+            if (n > 1) {
+                drawPoster(ctx, prevImg, SX_L, SY, SW, SH);
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(SX_L, SY, SW, SH);
+
+                drawPoster(ctx, nextImg, SX_R, SY, SW, SH);
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(SX_R, SY, SW, SH);
+            }
+
+            // Name bar at top — counter and title at same size, counter right-aligned
+            const name = currentPlaylist.title;
+            const counterText = `${idx + 1}\u2009/\u2009${n}`;
+            ctx.fillStyle = 'rgba(0,0,0,0.78)';
+            ctx.fillRect(0, 0, 200, NAME_H);
+            // Find the largest font size where both title and counter fit
+            let ns = 11;
+            ctx.font = `bold ${ns}px sans-serif`;
+            const counterW = ctx.measureText(counterText).width + 6; // 3px padding each side
+            while (ns > 7 && ctx.measureText(name).width > (196 - counterW)) { ns--; ctx.font = `bold ${ns}px sans-serif`; }
+            // Draw title
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = isDimmed ? COLORS.MEDIUM_GRAY : COLORS.WHITE;
+            ctx.fillText(name, 100, NAME_H / 2);
+            // Draw counter (same font size, right side)
+            ctx.fillStyle = effectiveAccent;
+            ctx.textAlign = 'right';
+            ctx.fillText(counterText, 198, NAME_H / 2);
+
+            // Center poster with 1px accent border
+            ctx.fillStyle = effectiveAccent;
+            ctx.fillRect(CX - 1, CY - 1, CW + 2, CH + 2);
+            drawPoster(ctx, currImg, CX, CY, CW, CH);
+
+            // Progress bar at bottom
+            const pgSettings = state.getActionSettings(context);
+            const totalPanels = parseInt(pgSettings.progressTotalPanels) || 1;
+            const position = parseInt(pgSettings.progressPosition) || 0;
+            const progress = state.displayProgress;
+            ctx.fillStyle = COLORS.DARK_GRAY;
+            ctx.fillRect(0, PROG_Y, 200, PROG_H);
+            if (position > 0 && position <= totalPanels) {
+                const segSize = 100 / totalPanels;
+                const segStart = (position - 1) * segSize;
+                const segEnd = position * segSize;
+                if (progress > segStart) {
+                    const progressInSeg = Math.min(progress, segEnd) - segStart;
+                    const fillWidth = Math.round((progressInSeg / segSize) * 200);
+                    if (fillWidth > 0) {
+                        ctx.fillStyle = effectiveAccent;
+                        ctx.fillRect(0, PROG_Y, fillWidth, PROG_H);
+                    }
+                }
+            }
+
+            // Poster dim overlay — same weight as text carousel grey
+            if (isDimmed) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, 200, 100);
+            }
+
+            setFeedback(context, { overlay: canvas.toDataURL('image/png') });
+        };
+
+        resolveImage(prevPlaylist, img => { prevImg = img; tryDraw(); });
+        resolveImage(currentPlaylist, img => { currImg = img; tryDraw(); });
+        resolveImage(nextPlaylist, img => { nextImg = img; tryDraw(); });
+    }
+
+    /**
+     * Render playlist carousel mode for the strip
+     */
+    function renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary) {
+        const style = settings.carouselStyle || 'text';
+        if (style === 'poster') {
+            return renderPlaylistCarouselPoster(context, state.getCarouselState(context), accentColor);
+        }
+
+        const carousel = state.getCarouselState(context);
+        const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+        const labelColor = isDimmed ? stripSecondary : textColor;
+        const textDisplayColor = isDimmed ? stripSecondary : textColor;
+
+        let label, text;
+        if (!carousel || carousel.playlists.length === 0) {
+            label = 'PLAYLISTS';
+            text = carousel ? 'No Playlists' : 'Loading...';
+        } else {
+            const total = carousel.playlists.length;
+            const idx = carousel.index;
+            label = `PLAYLIST ${idx + 1} / ${total}`;
+            text = carousel.playlists[idx].title;
+        }
+
+        const labelSize = Math.max(14, Math.round(fontSize * 0.85));
+        const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, accentColor);
+        const textAreaH = fontSize + 8;
+
+        const stripHeight = 100;
+        const progressBarHeight = 4;
+        const labelHeight = labelSize + 4;
+        const contentHeight = labelHeight + textAreaH + progressBarHeight;
+        const totalGap = stripHeight - contentHeight;
+        const gap = totalGap / 4;
+
+        const labelY = gap;
+        const textY = gap + labelHeight + gap;
+        const progressY = textY + textAreaH + gap;
+
+        const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
+
+        if (state.lastLayoutState[context] !== layoutKey) {
+            state.lastLayoutState[context] = layoutKey;
+            setFeedbackLayout(context, {
+                id: 'com.dreadheadhippy.ampdeckplus.layout',
+                items: [
+                    {
+                        key: 'label',
+                        type: 'text',
+                        rect: [0, labelY, 200, labelHeight],
+                        font: { size: labelSize, weight: 700 },
+                        color: labelColor,
+                        alignment: 'center'
+                    },
+                    {
+                        key: 'displayText',
+                        type: 'pixmap',
+                        rect: [0, textY, 200, textAreaH]
+                    },
+                    {
+                        key: 'progressBar',
+                        type: 'pixmap',
+                        rect: [0, progressY, 200, progressBarHeight]
+                    }
+                ]
+            });
+        }
+
         const font = `${fontSize}px sans-serif`;
         const needsScroll = measureTextWidth(text, font) > 190;
 
@@ -2429,28 +3111,51 @@
         ctx.fillStyle = COLORS.WHITE;
 
         if (subtitle) {
-            // Two-line display with symmetrical spacing - larger text for better visibility
+            // Two-line display — auto-size subtitle to fit within canvas width
             const titleSize = 24;
-            const subtitleSize = 44;
+            let subtitleSize = 44;
+            ctx.font = `bold ${subtitleSize}px sans-serif`;
+            while (subtitleSize > 12 && ctx.measureText(subtitle).width > 190) {
+                subtitleSize -= 2;
+                ctx.font = `bold ${subtitleSize}px sans-serif`;
+            }
             const totalContent = titleSize + subtitleSize;
-            const gap = (100 - totalContent) / 3; // Equal spacing: top, middle, bottom
-            
+            const gap = (100 - totalContent) / 3;
+
             const titleY = gap + titleSize / 2;
             const subtitleY = gap + titleSize + gap + subtitleSize / 2;
-            
+
             ctx.font = `bold ${titleSize}px sans-serif`;
             ctx.fillText(title, 100, titleY);
             ctx.font = `bold ${subtitleSize}px sans-serif`;
             ctx.fillText(subtitle, 100, subtitleY);
         } else {
-            // Single line display - vertically centered with larger text
-            ctx.font = 'bold 36px sans-serif';
+            // Single line display — auto-size to fit within canvas width
+            let singleSize = 36;
+            ctx.font = `bold ${singleSize}px sans-serif`;
+            while (singleSize > 12 && ctx.measureText(title).width > 190) {
+                singleSize -= 2;
+                ctx.font = `bold ${singleSize}px sans-serif`;
+            }
             ctx.fillText(title, 100, 50);
         }
 
         const overlayImage = canvas.toDataURL('image/png');
 
-        // Send full overlay layout
+        // Store overlay state FIRST so any concurrent renderStripLayout call sees it immediately
+        const timer = setTimeout(() => {
+            state.clearStripOverlay(context);
+            state.lastLayoutState[context] = null;
+            renderStripLayout(context);
+        }, 1500);
+
+        state.setStripOverlay(context, {
+            title: title,
+            subtitle: subtitle,
+            timer: timer
+        });
+
+        // Send layout and feedback after state is locked in
         setFeedbackLayout(context, {
             id: 'com.dreadheadhippy.ampdeckplus.overlay',
             items: [
@@ -2463,20 +3168,6 @@
         });
 
         setFeedback(context, { overlay: overlayImage });
-
-        // Set new timer - resets the countdown on each dial rotation
-        const timer = setTimeout(() => {
-            state.clearStripOverlay(context);
-            state.lastLayoutState[context] = null;
-            renderStripLayout(context);
-        }, 1500);
-
-        // Store overlay with timer reference
-        state.setStripOverlay(context, {
-            title: title,
-            subtitle: subtitle,
-            timer: timer
-        });
 
         logger.debug(`Overlay shown: ${title}${subtitle ? ' - ' + subtitle : ''}`);
     }
@@ -2507,9 +3198,17 @@
         }
     }
 
+    /**
+     * Clear poster image cache (call when playlists are reloaded)
+     */
+    function clearCarouselPosterCache() {
+        posterCache.clear();
+    }
+
     var layoutManager = {
         renderStripLayout,
-        showStripOverlay
+        showStripOverlay,
+        clearCarouselPosterCache
     };
 
     /**
@@ -2521,6 +3220,10 @@
 
     // Connection manager
     let connection = null;
+
+    // Polling health tracking
+    let isPollingInFlight = false;
+    let lastSuccessfulPoll = 0;
 
     // ============================================
     // STREAM DECK CONNECTION
@@ -2539,6 +3242,9 @@
         // Store connection manager in state so renderers always use the current socket
         state.pluginUUID = inPluginUUID;
         state.connection = connection;
+
+        // Give logger access to the connection so it can write to Stream Deck's log file
+        logger.setConnection(connection);
     }
 
     /**
@@ -2570,6 +3276,9 @@
             case 'dialDown':
                 onDialDown(data);
                 break;
+            case 'dialUp':
+                onDialUp(data);
+                break;
             case 'touchTap':
                 onTouchTap(data);
                 break;
@@ -2595,9 +3304,14 @@
         const settings = data.payload.settings || {};
         
         state.addAction(context, action, settings);
-        applySettingsToGlobal(settings);
+        applySettingsToGlobal();
         startPolling();
         
+        // Load playlists into carousel state if in playlists display mode
+        if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
+            loadCarouselPlaylists(context);
+        }
+
         // Initial render
         updateDisplay(context);
         
@@ -2637,6 +3351,19 @@
         // Start polling if configured
         if (settings.plexToken && settings.plexServerUrl) {
             pollTimeline();
+
+            // Load playlists for any carousel strips that appeared before the connection was ready
+            state.getAllContexts().forEach(context => {
+                const actionData = state.getAction(context);
+                if (!actionData) return;
+                if (actionData.action !== ACTIONS.STRIP) return;
+                const actionSettings = state.getActionSettings(context) || {};
+                if (actionSettings.displayMode !== 'playlists') return;
+                const existing = state.getCarouselState(context);
+                if (!existing || existing.playlists.length === 0) {
+                    loadCarouselPlaylists(context);
+                }
+            });
         }
     }
 
@@ -2645,12 +3372,18 @@
         const settings = data.payload.settings || {};
         
         state.updateActionSettings(context, settings);
-        applySettingsToGlobal(settings);
+        applySettingsToGlobal();
         saveGlobalSettings();
         
         // Reset layout to force refresh
         state.lastLayoutState[context] = null;
         
+        // Reload playlist carousel if mode changed to playlists
+        const action = state.getAction(context)?.action;
+        if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
+            loadCarouselPlaylists(context);
+        }
+
         updateDisplayPosition();
         updateAllDisplays();
         
@@ -2799,9 +3532,21 @@
         const ticks = payload.ticks || 0;
         
         if (!action || action !== ACTIONS.STRIP) return;
-        
+        if (state.playbackState === 'stopped') return; // Plexamp not running — ignore all dial input
+
         const dialAction = settings.dialAction || 'none';
-        
+
+        // Playlist carousel mode: dial rotation navigates the list
+        if (settings.displayMode === 'playlists') {
+            const carousel = state.getCarouselState(context);
+            if (!carousel || carousel.playlists.length === 0) return;
+            const total = carousel.playlists.length;
+            carousel.index = ((carousel.index + ticks) % total + total) % total;
+            state.setCarouselState(context, carousel);
+            layoutManager.renderStripLayout(context);
+            return;
+        }
+
         // Handle dial rotation based on user's configured action
         if (dialAction === 'skip') {
             if (ticks > 0) {
@@ -2855,8 +3600,43 @@
         const { context } = data;
         const action = state.getAction(context)?.action;
         
-        if (action === ACTIONS.STRIP) {
-            playbackController.togglePlayPause();
+        if (action !== ACTIONS.STRIP) return;
+
+        const settings = state.getActionSettings(context) || {};
+
+        if (settings.displayMode === 'playlists') {
+            if (state.playbackState === 'stopped') return; // Plexamp not running
+            // Record press; onDialUp will fire the play action
+            state.dialHoldState[context] = { pressTime: Date.now() };
+            return;
+        }
+
+        playbackController.togglePlayPause();
+    }
+
+    function onDialUp(data) {
+        const { context } = data;
+        const action = state.getAction(context)?.action;
+        
+        if (action !== ACTIONS.STRIP) return;
+
+        const settings = state.getActionSettings(context) || {};
+
+        if (settings.displayMode === 'playlists') {
+            delete state.dialHoldState[context];
+
+            if (state.playbackState === 'stopped') return; // Plexamp not running
+
+            // Press: play the currently highlighted playlist
+            const carousel = state.getCarouselState(context);
+            if (!carousel || carousel.playlists.length === 0) return;
+
+            const playlist = carousel.playlists[carousel.index];
+            if (!playlist?.ratingKey) return;
+
+            state.currentPlaylistName = playlist.title;
+            playbackController.playPlaylist(playlist.ratingKey);
+            layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
         }
     }
 
@@ -2867,6 +3647,7 @@
         if (action !== ACTIONS.STRIP) return;
         
         // Tap anywhere on touch strip to play/pause
+        if (state.playbackState === 'stopped') return; // Plexamp not running
         playbackController.togglePlayPause();
     }
 
@@ -2956,6 +3737,16 @@
                 await playbackController.setVolume(newVol);
                 break;
             }
+            case ACTIONS.PLAYLIST: {
+                const playlistSettings = state.getActionSettings(context) || {};
+                const ratingKey = playlistSettings.playlistRatingKey;
+                if (!ratingKey) {
+                    logger.warn('Playlist button pressed but no playlist configured');
+                    break;
+                }
+                await playbackController.playPlaylist(ratingKey);
+                break;
+            }
         }
         
         // Update displays after action
@@ -2966,17 +3757,41 @@
     // SETTINGS MANAGEMENT
     // ============================================
 
-    function applySettingsToGlobal(settings) {
-        // Only propagate connection settings from per-action settings.
-        // Display preferences (dynamicColors, textColor, debugMode, syncOffset) must
-        // only flow from didReceiveGlobalSettings — propagating them here causes any
-        // action with stale per-action settings to silently overwrite the correct
-        // global value (e.g. re-enabling dynamic colors after the user unchecked it).
-        if (settings.plexServerUrl) state.updateGlobalSettings({ plexServerUrl: settings.plexServerUrl });
-        if (settings.plexToken) state.updateGlobalSettings({ plexToken: settings.plexToken });
-        if (settings.clientName) state.updateGlobalSettings({ clientName: settings.clientName });
-        if (settings.playerUrl) state.updateGlobalSettings({ playerUrl: settings.playerUrl });
+    /**
+     * Fetch audio playlists from Plex and store in carousel state for a dial context
+     */
+    async function loadCarouselPlaylists(context) {
+        // Initialize with empty state so the strip shows "Loading..."
+        if (!state.getCarouselState(context)) {
+            state.setCarouselState(context, { playlists: [], index: 0 });
+        }
+        // Clear poster cache so fresh art is fetched for the new playlist list
+        layoutManager.clearCarouselPosterCache();
+        layoutManager.renderStripLayout(context);
 
+        try {
+            const playlists = await plexConnection.fetchPlaylists();
+            const existing = state.getCarouselState(context) || { index: 0 };
+            const clamped = Math.min(existing.index, Math.max(0, playlists.length - 1));
+            state.setCarouselState(context, { playlists, index: clamped });
+            logger.info(`Carousel loaded ${playlists.length} playlists for context`);
+        } catch (err) {
+            logger.warn(`Failed to load carousel playlists: ${err.message}`);
+            state.setCarouselState(context, { playlists: [], index: 0 });
+        }
+
+        // Trigger a re-render with the loaded data
+        state.lastLayoutState[context] = null;
+        layoutManager.renderStripLayout(context);
+    }
+
+    function applySettingsToGlobal(_settings) {
+        // Connection settings (plexServerUrl, plexToken, clientName, playerUrl) and
+        // display preferences (dynamicColors, textColor, debugMode, syncOffset) must
+        // only flow from didReceiveGlobalSettings. Per-action settings can hold stale
+        // or inconsistent values (e.g. localhost vs LAN IP saved on different buttons)
+        // and whichever button loads last would silently overwrite the correct global
+        // value. Global settings are the single authoritative source for all of these.
         updateLogLevel();
         configurePlexConnection();
     }
@@ -3036,8 +3851,11 @@
     }
 
     async function pollTimeline() {
+        if (isPollingInFlight) return;
+        isPollingInFlight = true;
         try {
             const timeline = await plexConnection.fetchTimeline();
+            lastSuccessfulPoll = Date.now();
             
             if (timeline && timeline.state !== 'stopped') {
                 metadataCache.updateFromTimeline(timeline);
@@ -3046,10 +3864,21 @@
             }
         } catch (error) {
             logger.debug(`Timeline poll failed: ${error.message}`);
+        } finally {
+            isPollingInFlight = false;
         }
     }
 
     function renderTick() {
+        // Watchdog: if polling has gone silent for 10s, restart the cycle
+        if (lastSuccessfulPoll > 0 && (Date.now() - lastSuccessfulPoll) > 10000) {
+            logger.debug('Poll watchdog triggered — restarting poll cycle');
+            lastSuccessfulPoll = Date.now(); // Reset to avoid repeated triggers
+            isPollingInFlight = false;       // Clear any stuck in-flight flag
+            stopPolling();
+            startPolling();
+            return;
+        }
         updateDisplayPosition();
         updateAllDisplays();
     }
@@ -3134,6 +3963,9 @@
             case ACTIONS.VOLUME_DOWN:
                 buttonRenderer.renderVolumeDown(context);
                 break;
+            case ACTIONS.PLAYLIST:
+                buttonRenderer.renderPlaylist(context);
+                break;
         }
     }
 
@@ -3146,6 +3978,7 @@
     // Expose globally for Stream Deck
     if (typeof window !== 'undefined') {
         window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+        window.pollTimeline = pollTimeline;
     }
 
 })();

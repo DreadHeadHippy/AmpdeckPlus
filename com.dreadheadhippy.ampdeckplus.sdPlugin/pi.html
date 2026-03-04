@@ -137,6 +137,20 @@
         </div>
     </div>
 
+    <div id="playlistSettings" style="display: none;">
+        <div class="sdpi-heading">Playlist Button Settings</div>
+
+        <div class="sdpi-item">
+            <label>Playlist</label>
+            <select id="playlistSelect">
+                <option value="">-- Click "Load Playlists" below --</option>
+            </select>
+            <div class="help-text">Select the audio playlist this button will start playing</div>
+        </div>
+
+        <button id="loadPlaylistsBtn">Load Playlists</button>
+    </div>
+
     <div id="ratingSettings" style="display: none;">
         <div class="sdpi-heading">Rating Button Settings</div>
         
@@ -231,6 +245,22 @@
             const settings = actionInfo.payload.settings || {};
             const actionUUID = actionInfo.action;
             
+            // Show playlist settings only for playlist button
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.playlist') {
+                document.getElementById('playlistSettings').style.display = 'block';
+                // Restore the previously saved playlist selection
+                if (settings.playlistRatingKey) {
+                    const sel = document.getElementById('playlistSelect');
+                    sel.innerHTML = '';
+                    const opt = document.createElement('option');
+                    opt.value = settings.playlistRatingKey;
+                    opt.dataset.title = settings.playlistName || '';
+                    opt.textContent = settings.playlistName || settings.playlistRatingKey;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            }
+
             // Show navigation settings for next/previous buttons
             if (actionUUID === 'com.dreadheadhippy.ampdeckplus.next' || actionUUID === 'com.dreadheadhippy.ampdeckplus.previous') {
                 document.getElementById('navigationSettings').style.display = 'block';
@@ -280,6 +310,15 @@
                     if (s.textColor) document.getElementById('textColor').value = s.textColor;
                     if (s.dynamicColors !== undefined) document.getElementById('dynamicColors').checked = s.dynamicColors;
                     if (s.debugMode !== undefined) document.getElementById('debugMode').checked = s.debugMode;
+
+                    // Auto-load playlists once credentials arrive (no need to click the button)
+                    if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.playlist') {
+                        const serverUrl = (s.plexServerUrl || '').trim();
+                        const token = (s.plexToken || '').trim();
+                        if (serverUrl && token) {
+                            loadPlaylists(serverUrl, token, true);
+                        }
+                    }
                 }
             };
         }
@@ -346,6 +385,14 @@
                 settings.ratingMode = document.getElementById('ratingMode').value;
             }
 
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.playlist') {
+                const sel = document.getElementById('playlistSelect');
+                const selOpt = sel.options[sel.selectedIndex];
+                settings.playlistRatingKey = sel.value;
+                // Save raw title only (not "Title (N tracks)" display text)
+                settings.playlistName = selOpt?.dataset.title || selOpt?.text || '';
+            }
+
             if (websocket && websocket.readyState === WebSocket.OPEN) {
                 websocket.send(JSON.stringify({
                     event: 'setSettings',
@@ -379,6 +426,79 @@
         document.getElementById('ratingMode').addEventListener('change', saveSettings);
         document.getElementById('syncOffset').addEventListener('change', saveSettings);
         document.getElementById('debugMode').addEventListener('change', saveSettings);
+        document.getElementById('playlistSelect').addEventListener('change', saveSettings);
+
+        // Load Playlists from Plex server
+        async function loadPlaylists(serverUrl, token, silent) {
+            const statusEl = document.getElementById('status');
+
+            if (!serverUrl || !token) {
+                if (!silent) {
+                    statusEl.className = 'show error';
+                    statusEl.textContent = 'Enter Server URL and Plex Token above, then click Load Playlists.';
+                }
+                return;
+            }
+
+            if (!silent) {
+                statusEl.className = 'show info';
+                statusEl.textContent = 'Fetching playlists...';
+            }
+
+            try {
+                const response = await fetch(serverUrl + '/playlists?playlistType=audio&X-Plex-Token=' + encodeURIComponent(token), {
+                    headers: { 'X-Plex-Token': token }
+                });
+
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const items = doc.querySelectorAll('Playlist');
+
+                if (items.length === 0) {
+                    if (!silent) {
+                        statusEl.className = 'show warning';
+                        statusEl.textContent = 'No audio playlists found on this server.';
+                    }
+                    return;
+                }
+
+                const sel = document.getElementById('playlistSelect');
+                const currentKey = sel.value;
+                sel.innerHTML = '';
+
+                items.forEach(function(item) {
+                    const opt = document.createElement('option');
+                    const title = item.getAttribute('title');
+                    const count = item.getAttribute('leafCount') || '?';
+                    opt.value = item.getAttribute('ratingKey');
+                    opt.dataset.title = title;  // raw title saved to settings
+                    opt.textContent = title + ' (' + count + ' tracks)';
+                    if (opt.value === currentKey) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+
+                if (!silent) {
+                    statusEl.className = 'show success';
+                    statusEl.textContent = '\u2713 Found ' + items.length + ' playlist(s). Select one above.';
+                }
+
+                saveSettings();
+            } catch (e) {
+                if (!silent) {
+                    statusEl.className = 'show error';
+                    statusEl.textContent = '\u2717 Failed to load playlists: ' + e.message;
+                }
+            }
+        }
+
+        document.getElementById('loadPlaylistsBtn').addEventListener('click', function() {
+            const serverUrl = document.getElementById('plexServerUrl').value.trim();
+            const token = document.getElementById('plexToken').value.trim();
+            loadPlaylists(serverUrl, token, false);
+        });
 
         // Test Player Connection (local Plexamp API)
         document.getElementById('testPlayerBtn').addEventListener('click', async function() {
