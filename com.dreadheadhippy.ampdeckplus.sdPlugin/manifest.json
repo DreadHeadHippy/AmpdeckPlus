@@ -66,7 +66,7 @@
       "Name": "Play / Pause",
       "States": [
         {
-          "Image": "imgs/play-icon",
+          "Image": "imgs/play-pause-icon",
           "ShowTitle": false
         }
       ],
@@ -150,7 +150,7 @@
       "Name": "Shuffle",
       "States": [
         {
-          "Image": "imgs/shuffle-default",
+          "Image": "imgs/shuffle-icon",
           "ShowTitle": false
         }
       ],
