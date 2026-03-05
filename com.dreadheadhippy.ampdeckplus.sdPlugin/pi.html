@@ -440,13 +440,38 @@
                 return;
             }
 
+            const urlValidation = validateUrl(serverUrl, false);
+            if (!urlValidation.valid) {
+                if (!silent) {
+                    statusEl.className = 'show error';
+                    statusEl.textContent = 'Invalid server URL: ' + urlValidation.error;
+                }
+                return;
+            }
+
+            // Build URL from validated components only (prevents SSRF via path traversal)
+            let parsedServer;
+            try {
+                parsedServer = new URL(serverUrl);
+            } catch (e) {
+                if (!silent) {
+                    statusEl.className = 'show error';
+                    statusEl.textContent = 'Invalid server URL.';
+                }
+                return;
+            }
+            const safeBase = parsedServer.origin;
+
             if (!silent) {
                 statusEl.className = 'show info';
                 statusEl.textContent = 'Fetching playlists...';
             }
 
             try {
-                const response = await fetch(serverUrl + '/playlists?playlistType=audio&X-Plex-Token=' + encodeURIComponent(token), {
+                const requestUrl = new URL('/playlists', safeBase);
+                requestUrl.searchParams.set('playlistType', 'audio');
+                requestUrl.searchParams.set('X-Plex-Token', token);
+                const response = await fetch(requestUrl.toString(), {
                     headers: { 'X-Plex-Token': token }
                 });
 

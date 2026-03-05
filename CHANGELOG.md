@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.6] - 2026-03-04
+
+### 🔒 Security
+- **SSRF fix in playlist loader** — The `loadPlaylists` function in the property inspector now validates the user-supplied Plex server URL before making any network request, and builds the outgoing fetch URL from `URL.origin` + `URLSearchParams` rather than raw string concatenation. This prevents a malicious or misconfigured server URL from redirecting the request to an internal network endpoint or injecting arbitrary path/query segments (CWE-918 / CodeQL `js/request-forgery`).
+
+---
+
 ## [2.0.5] - 2026-03-03
 
 ### ✨ New Features
