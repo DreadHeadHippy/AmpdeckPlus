@@ -124,6 +124,12 @@
         </select>
         <div class="help-text">Text Only: scrolling playlist name. 3-Up Poster: artwork browser with name bar and progress bar.</div>
     </div>
+
+    <div class="sdpi-item-checkbox" id="carouselShuffleContainer" style="display: none;">
+        <input type="checkbox" id="carouselShuffle">
+        <label for="carouselShuffle">Start playlist shuffled</label>
+    </div>
+    <div id="carouselShuffleHelp" class="help-text" style="display: none; margin-top: -6px; margin-bottom: 10px;">When checked, pressing to play a playlist will shuffle it</div>
     
     <div class="sdpi-item">
         <label>Font Size</label>
@@ -289,6 +295,7 @@
             document.getElementById('syncOffset').value = settings.syncOffset !== undefined ? settings.syncOffset : 0;
             document.getElementById('debugMode').checked = settings.debugMode === true;
             document.getElementById('carouselStyle').value = settings.carouselStyle || 'text';
+            document.getElementById('carouselShuffle').checked = settings.carouselShuffle === true;
             
             // Show/hide conditional sections
             updateRatingModeVisibility();
@@ -333,6 +340,8 @@
         function updateCarouselStyleVisibility() {
             const isPlaylists = document.getElementById('displayMode').value === 'playlists';
             document.getElementById('carouselStyleContainer').style.display = isPlaylists ? 'block' : 'none';
+            document.getElementById('carouselShuffleContainer').style.display = isPlaylists ? 'flex' : 'none';
+            document.getElementById('carouselShuffleHelp').style.display = isPlaylists ? 'block' : 'none';
 
             // Lock dial controls in playlists mode — carousel handles rotate/press itself
             const dialAction = document.getElementById('dialAction');
@@ -395,6 +404,7 @@
             const settings = {
                 displayMode: document.getElementById('displayMode').value,
                 carouselStyle: document.getElementById('carouselStyle').value,
+                carouselShuffle: document.getElementById('carouselShuffle').checked,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
                 ratingMode: document.getElementById('ratingMode').value,
@@ -446,6 +456,7 @@
             saveSettings();
         });
         document.getElementById('carouselStyle').addEventListener('change', saveSettings);
+        document.getElementById('carouselShuffle').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
         document.getElementById('dialAction').addEventListener('change', function() {
             updateRatingModeVisibility();

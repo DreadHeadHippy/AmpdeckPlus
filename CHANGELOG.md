@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.7] - 2026-03-06
+
+### ✨ New Features
+- **Canvas-drawn play/pause button** — The play/pause button now renders its play triangle and pause bars directly on the canvas like all other buttons — no static icon. Icon size is configurable (Small 40px → Extra Large 72px) via button settings.
+- **Shuffle & Repeat button redesign** — Icons now fill with the dynamic accent color when enabled; labels (`ON`/`OFF`, `ALL`/`ONE`/`OFF`) are always visible in white so state is always readable at a glance. New **"Keep accent color when off"** option per-button keeps the icon accent-colored even in the off state.
+- **Navigation icon size options expanded** — Default bumped to 60px (matching the play/pause icon height) and Extra Large 72px option added.
+
+### 🎨 Visual Polish
+- **Paused state no longer dims buttons or the touch strip** — `isDimmed` now only triggers on `stopped` (Plexamp disconnected/not running). All buttons, the Now Playing strip, and the playlist carousel display in full color when playback is paused, matching the full-control behavior that was already in place for the playing state.
+
+---
+
 ## [2.0.6] - 2026-03-04
 
 ### 🔒 Security

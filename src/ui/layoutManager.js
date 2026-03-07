@@ -59,7 +59,7 @@ export function renderStripLayout(context) {
     const textColor = settings.textColor || getTextColor();
     const accentColor = getAccentColor();
     const stripSecondary = getSecondaryColor(textColor);
-    const isDimmed = state.playbackState !== 'playing';
+    const isDimmed = state.playbackState === 'stopped';
     const effectiveAccent  = isDimmed ? stripSecondary : accentColor;
 
     let label = '', text = '';
@@ -279,7 +279,7 @@ function renderPlaylistCarouselPoster(context, carousel, accentColor) {
 
         // An overlay (e.g. "PLAYING") may have been set while async image loads were in flight
         if (state.getStripOverlay(context)) return;
-        const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+        const isDimmed = state.playbackState === 'stopped';
         const effectiveAccent = isDimmed ? COLORS.MEDIUM_GRAY : accentColor;
 
         const canvas = document.createElement('canvas');
@@ -368,7 +368,7 @@ function renderPlaylistCarousel(context, settings, fontSize, totalPanels, positi
     }
 
     const carousel = state.getCarouselState(context);
-    const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+    const isDimmed = state.playbackState === 'stopped';
     const labelColor = isDimmed ? stripSecondary : textColor;
     const textDisplayColor = isDimmed ? stripSecondary : textColor;
 

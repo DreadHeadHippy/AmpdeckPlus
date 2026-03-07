@@ -22,6 +22,9 @@ let connection = null;
 let isPollingInFlight = false;
 let lastSuccessfulPoll = 0;
 
+// Play/pause morph animation
+
+
 // ============================================
 // STREAM DECK CONNECTION
 // ============================================
@@ -432,7 +435,7 @@ function onDialUp(data) {
         if (!playlist?.ratingKey) return;
 
         state.currentPlaylistName = playlist.title;
-        playbackController.playPlaylist(playlist.ratingKey);
+        playbackController.playPlaylist(playlist.ratingKey, settings.carouselShuffle === true);
         layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
     }
 }
@@ -541,7 +544,7 @@ async function handleButtonAction(action, context) {
                 logger.warn('Playlist button pressed but no playlist configured');
                 break;
             }
-            await playbackController.playPlaylist(ratingKey);
+            await playbackController.playPlaylist(ratingKey, playlistSettings.playlistShuffle === true);
             break;
         }
     }

@@ -4,7 +4,7 @@
  */
 
 // Version
-export const VERSION = '2.0.1';
+export const VERSION = '2.0.7';
 
 // Action identifiers
 export const ACTIONS = {

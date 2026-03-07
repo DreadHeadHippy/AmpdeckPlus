@@ -434,7 +434,7 @@ class PlexConnection {
      * Create a playQueue on the server from a playlist ratingKey.
      * Returns the playQueueID string.
      */
-    async createPlayQueue(ratingKey) {
+    async createPlayQueue(ratingKey, shuffle = false) {
         const machineId = await this.fetchServerMachineId();
         const uri = `server://${machineId}/com.plexapp.plugins.library/playlists/${ratingKey}`;
 
@@ -445,7 +445,7 @@ class PlexConnection {
         const params = new URLSearchParams({
             type: 'audio',
             uri,
-            shuffle: 0,
+            shuffle: shuffle ? 1 : 0,
             repeat: 0,
             'X-Plex-Token': this.token
         });

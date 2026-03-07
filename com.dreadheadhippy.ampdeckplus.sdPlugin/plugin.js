@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.1';
+    const VERSION = '2.0.7';
 
     // Action identifiers
     const ACTIONS = {
@@ -1085,7 +1085,7 @@
          * Create a playQueue on the server from a playlist ratingKey.
          * Returns the playQueueID string.
          */
-        async createPlayQueue(ratingKey) {
+        async createPlayQueue(ratingKey, shuffle = false) {
             const machineId = await this.fetchServerMachineId();
             const uri = `server://${machineId}/com.plexapp.plugins.library/playlists/${ratingKey}`;
 
@@ -1096,7 +1096,7 @@
             const params = new URLSearchParams({
                 type: 'audio',
                 uri,
-                shuffle: 0,
+                shuffle: shuffle ? 1 : 0,
                 repeat: 0,
                 'X-Plex-Token': this.token
             });
@@ -1379,8 +1379,9 @@
          * Creates a server-side playQueue then issues a playMedia command to the player.
          *
          * @param {string} ratingKey - Plex ratingKey of the playlist
+         * @param {boolean} [shuffle=false] - Whether to shuffle the playlist
          */
-        async playPlaylist(ratingKey) {
+        async playPlaylist(ratingKey, shuffle = false) {
             if (!ratingKey) {
                 logger.warn('playPlaylist called with no ratingKey');
                 return;
@@ -1388,7 +1389,7 @@
 
             try {
                 // Step 1: create a playQueue on the server
-                const playQueueID = await plexConnection.createPlayQueue(ratingKey);
+                const playQueueID = await plexConnection.createPlayQueue(ratingKey, shuffle);
                 const serverMachineId = await plexConnection.fetchServerMachineId();
 
                 // Derive address + port from serverUrl, e.g. http://192.168.1.100:32400
@@ -1665,7 +1666,7 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
 
         if (state.currentAlbumArt) {
             const img = new Image();
@@ -1692,39 +1693,51 @@
     }
 
     /**
-     * Render play/pause button
+     * Render play/pause button.
+     *
+     * Draws the play triangle when paused/stopped, or two pause bars when playing.
+     * Follows the same dimming logic as all other buttons.
+     *
+     * Play triangle:  (50,42) → (110,72) tip → (50,102)
+     * Pause bars:     left x:45–63 y:42–102   right x:81–99 y:42–102
+     *
+     * @param {string} context - Stream Deck button context
      */
     function renderPlayPause(context) {
         const canvas = createCanvas();
         const ctx = canvas.getContext('2d');
-        
+
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const textColor = getTextColor$1();
+        const isDimmed = state.playbackState === 'stopped';
+        ctx.fillStyle = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
-        if (state.playbackState === 'stopped') {
-            ctx.fillStyle = COLORS.DARK_GRAY;
-            ctx.beginPath();
-            ctx.moveTo(50, 42);
-            ctx.lineTo(110, 72);
-            ctx.lineTo(50, 102);
-            ctx.closePath();
-            ctx.fill();
-        } else if (state.playbackState === 'playing') {
-            ctx.fillStyle = textColor;
-            ctx.fillRect(45, 42, 18, 60);
-            ctx.fillRect(81, 42, 18, 60);
+        const settings = state.getActionSettings(context) || {};
+        const iconSize = parseInt(settings.playPauseIconSize) || 60;
+        const half = iconSize / 2;
+        const cx = CANVAS.BUTTON_SIZE / 2;
+        const cy = CANVAS.BUTTON_SIZE / 2;
+        const top = cy - half;
+
+        if (state.playbackState === 'playing') {
+            // Two pause bars, proportional to iconSize
+            const barWidth = Math.round(iconSize * 0.3);
+            const barGap   = Math.round(iconSize * 0.3);
+            const leftX    = Math.round(cx - barWidth - barGap / 2);
+            const rightX   = Math.round(cx + barGap / 2);
+            ctx.fillRect(leftX,  top, barWidth, iconSize);
+            ctx.fillRect(rightX, top, barWidth, iconSize);
         } else {
-            ctx.fillStyle = textColor;
+            // Play triangle, centered
             ctx.beginPath();
-            ctx.moveTo(50, 42);
-            ctx.lineTo(110, 72);
-            ctx.lineTo(50, 102);
+            ctx.moveTo(cx - half, top);
+            ctx.lineTo(cx + half, cy);
+            ctx.lineTo(cx - half, top + iconSize);
             ctx.closePath();
             ctx.fill();
         }
-        
+
         sendImage(context, canvas.toDataURL('image/png'));
     }
 
@@ -1738,7 +1751,7 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
@@ -1800,7 +1813,7 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
@@ -1886,7 +1899,7 @@
         const ratingMode = settings.ratingMode || "half";
         const displayStyle = settings.ratingDisplay || "stars";
         
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
@@ -1950,10 +1963,12 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const isOn = state.currentShuffle === 1;
-        const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+        const settings = state.getActionSettings(context) || {};
+        const accentOff = settings.shuffleAccentOff === true;
+        const iconColor = isDimmed ? COLORS.DARK_GRAY : (isOn || accentOff ? accentColor : COLORS.DARK_GRAY);
 
         // Crossing arrows
         ctx.strokeStyle = iconColor;
@@ -1990,13 +2005,11 @@
         ctx.closePath();
         ctx.fill();
 
-        // State label - dynamic color
-        if (isOn) {
-            ctx.fillStyle = accentColor;
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('ON', 72, 130);
-        }
+        // State label - always shown, white text
+        ctx.fillStyle = isDimmed ? COLORS.DARK_GRAY : COLORS.WHITE;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(isOn ? 'ON' : 'OFF', 72, 130);
         
         sendImage(context, canvas.toDataURL('image/png'));
     }
@@ -2011,10 +2024,12 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const isOn = state.currentRepeat > 0;
-        const iconColor = (isDimmed || !isOn) ? COLORS.DARK_GRAY : COLORS.WHITE;
+        const settings = state.getActionSettings(context) || {};
+        const accentOff = settings.repeatAccentOff === true;
+        const iconColor = isDimmed ? COLORS.DARK_GRAY : (isOn || accentOff ? accentColor : COLORS.DARK_GRAY);
 
         // Loop shape
         ctx.strokeStyle = iconColor;
@@ -2043,25 +2058,19 @@
 
         // "1" badge inside loop for repeat-one
         if (state.currentRepeat === 1) {
-            ctx.fillStyle = '#999999';
+            ctx.fillStyle = COLORS.WHITE;
             ctx.font = 'bold 28px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('1', 70, 78);
         }
 
-        // State label - dynamic color
+        // State label - always shown, white text
         // Plex API: 1=One, 2=All
-        if (state.currentRepeat === 2) {
-            ctx.fillStyle = accentColor;
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('ALL', 72, 128);
-        } else if (state.currentRepeat === 1) {
-            ctx.fillStyle = accentColor;
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('ONE', 72, 128);
-        }
+        const labelText = state.currentRepeat === 2 ? 'ALL' : state.currentRepeat === 1 ? 'ONE' : 'OFF';
+        ctx.fillStyle = isDimmed ? COLORS.DARK_GRAY : COLORS.WHITE;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(labelText, 72, 128);
         
         sendImage(context, canvas.toDataURL('image/png'));
     }
@@ -2077,8 +2086,8 @@
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
         const settings = state.getActionSettings(context) || {};
-        const iconSize = parseInt(settings.navigationIconSize) || 40;
-        const isDimmed = state.playbackState !== 'playing';
+        const iconSize = parseInt(settings.navigationIconSize) || 60;
+        const isDimmed = state.playbackState === 'stopped';
         const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         // Calculate animation offset (starts at center, moves left, wraps from right)
@@ -2148,8 +2157,8 @@
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
         const settings = state.getActionSettings(context) || {};
-        const iconSize = parseInt(settings.navigationIconSize) || 40;
-        const isDimmed = state.playbackState !== 'playing';
+        const iconSize = parseInt(settings.navigationIconSize) || 60;
+        const isDimmed = state.playbackState === 'stopped';
         const iconColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         // Calculate animation offset (starts at center, moves right, wraps from left)
@@ -2238,7 +2247,7 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, S, S);
 
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const volume = Math.max(0, Math.min(100, state.currentVolume ?? 50));
 
@@ -2347,13 +2356,8 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, S, S);
 
-        const playbackState = state.playbackState;
-        const isPaused  = playbackState === 'paused';
-        const isStopped = playbackState === 'stopped';
-        const isDimmed  = isPaused || isStopped;
-        const accentColor = isDimmed
-            ? (isStopped ? COLORS.DARK_GRAY : COLORS.MEDIUM_GRAY)
-            : getAccentColor$1();
+        const isDimmed = state.playbackState === 'stopped';
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
         const settings = state.getActionSettings(context) || {};
         const playlistName = settings.playlistName || null;
 
@@ -2577,7 +2581,7 @@
         const textColor = settings.textColor || getTextColor();
         const accentColor = getAccentColor();
         const stripSecondary = getSecondaryColor(textColor);
-        const isDimmed = state.playbackState !== 'playing';
+        const isDimmed = state.playbackState === 'stopped';
         const effectiveAccent  = isDimmed ? stripSecondary : accentColor;
 
         let label = '', text = '';
@@ -2797,7 +2801,7 @@
 
             // An overlay (e.g. "PLAYING") may have been set while async image loads were in flight
             if (state.getStripOverlay(context)) return;
-            const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+            const isDimmed = state.playbackState === 'stopped';
             const effectiveAccent = isDimmed ? COLORS.MEDIUM_GRAY : accentColor;
 
             const canvas = document.createElement('canvas');
@@ -2886,7 +2890,7 @@
         }
 
         const carousel = state.getCarouselState(context);
-        const isDimmed = state.playbackState === 'paused' || state.playbackState === 'stopped';
+        const isDimmed = state.playbackState === 'stopped';
         const labelColor = isDimmed ? stripSecondary : textColor;
         const textDisplayColor = isDimmed ? stripSecondary : textColor;
 
@@ -3224,6 +3228,9 @@
     // Polling health tracking
     let isPollingInFlight = false;
     let lastSuccessfulPoll = 0;
+
+    // Play/pause morph animation
+
 
     // ============================================
     // STREAM DECK CONNECTION
@@ -3635,7 +3642,7 @@
             if (!playlist?.ratingKey) return;
 
             state.currentPlaylistName = playlist.title;
-            playbackController.playPlaylist(playlist.ratingKey);
+            playbackController.playPlaylist(playlist.ratingKey, settings.carouselShuffle === true);
             layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
         }
     }
@@ -3744,7 +3751,7 @@
                     logger.warn('Playlist button pressed but no playlist configured');
                     break;
                 }
-                await playbackController.playPlaylist(ratingKey);
+                await playbackController.playPlaylist(ratingKey, playlistSettings.playlistShuffle === true);
                 break;
             }
         }

@@ -242,8 +242,9 @@ class PlaybackController {
      * Creates a server-side playQueue then issues a playMedia command to the player.
      *
      * @param {string} ratingKey - Plex ratingKey of the playlist
+     * @param {boolean} [shuffle=false] - Whether to shuffle the playlist
      */
-    async playPlaylist(ratingKey) {
+    async playPlaylist(ratingKey, shuffle = false) {
         if (!ratingKey) {
             logger.warn('playPlaylist called with no ratingKey');
             return;
@@ -251,7 +252,7 @@ class PlaybackController {
 
         try {
             // Step 1: create a playQueue on the server
-            const playQueueID = await plexConnection.createPlayQueue(ratingKey);
+            const playQueueID = await plexConnection.createPlayQueue(ratingKey, shuffle);
             const serverMachineId = await plexConnection.fetchServerMachineId();
 
             // Derive address + port from serverUrl, e.g. http://192.168.1.100:32400

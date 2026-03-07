@@ -27,21 +27,13 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.6
+## ⚡ What's New in v2.0.7
 
-- **🔒 Security patch** — Fixed a Server-Side Request Forgery (SSRF) vulnerability in the playlist loader (property inspector). The outgoing Plex API request now validates the server URL and constructs the fetch target from its `origin` only, preventing a crafted URL from redirecting the request to internal network resources (CWE-918).
+- **🎨 Paused state no longer dims** — All buttons and the touch strip now stay fully lit and color-filled when playback is paused. Dimming only happens when Plexamp is disconnected / not running.
+- **🎛️ Canvas-drawn play/pause** — The play/pause button now renders its icons directly on canvas like all other buttons, with a configurable icon size (matching nav button options).
+- **🔀 Shuffle & Repeat redesign** — Accent-colored icons when on, always-visible white `ON`/`OFF`/`ALL`/`ONE` labels, and a new **"Keep accent color when off"** check box. **"Keep accent color when off"** keeps the icon accent-colored even in the off state.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
-
----
-
-## v2.0.5 Highlights
-
-- **🎵 Playlist button & touch strip carousel** — Browse and play your Plex playlists directly from Stream Deck. A new **Playlist** button action let's you assign a playlist to a key. A new **Playlist Carousel** strip action displays your playlists in a scrollable poster or text view on the touch strip — rotate the dial to browse, press to queue and play. Use the **Load Playlists** button in the action settings to populate your playlist library.
-- **🐛 Plugin no longer freezes album art and track info mid-session** — Four separate fixes working together: the timeline poll now uses `wait=0` so requests return immediately instead of holding open connections; an in-flight guard prevents concurrent poll requests from piling up; a 10-second stale watchdog in the render loop automatically restarts the poll cycle if data stops flowing; and a `visibilitychange` listener fires an immediate poll when Stream Deck is restored from the system tray.
-- **🐛 Buttons and strip no longer stay bright when Plexamp is closed** — All button renders and touch strip panels previously only dimmed when playback was paused, remaining fully illuminated when Plexamp wasn't running. All renderers now treat stopped (Plexamp closed) the same as paused — album art gets a gray overlay, icons and text mute to dark gray — and all dial and touch inputs are blocked until Plexamp is open again.
-
-📋 **[View Full Changelog](CHANGELOG.md)** for complete version history
 
 ---
 

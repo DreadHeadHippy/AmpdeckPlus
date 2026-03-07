@@ -128,13 +128,46 @@
         <div class="sdpi-item">
             <label>Icon Size</label>
             <select id="navigationIconSize">
-                <option value="24">Small (24px)</option>
-                <option value="32">Medium (32px)</option>
-                <option value="40">Large (40px)</option>
-                <option value="48">Extra Large (48px)</option>
+                <option value="40">Small (40px)</option>
+                <option value="48">Medium (48px)</option>
+                <option value="60">Large (60px)</option>
+                <option value="72">Extra Large (72px)</option>
             </select>
             <div class="help-text">Size of the navigation arrows</div>
         </div>
+    </div>
+
+    <div id="playPauseSettings" style="display: none;">
+        <div class="sdpi-heading">Play/Pause Button Settings</div>
+
+        <div class="sdpi-item">
+            <label>Icon Size</label>
+            <select id="playPauseIconSize">
+                <option value="40">Small (40px)</option>
+                <option value="48">Medium (48px)</option>
+                <option value="60">Large (60px)</option>
+                <option value="72">Extra Large (72px)</option>
+            </select>
+            <div class="help-text">Size of the play and pause icons</div>
+        </div>
+    </div>
+
+    <div id="shuffleSettings" style="display: none;">
+        <div class="sdpi-heading">Shuffle Button Settings</div>
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="shuffleAccentOff">
+            <label for="shuffleAccentOff">Keep accent color when off</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When checked, the icon stays accent-colored even when shuffle is off</div>
+    </div>
+
+    <div id="repeatSettings" style="display: none;">
+        <div class="sdpi-heading">Repeat Button Settings</div>
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="repeatAccentOff">
+            <label for="repeatAccentOff">Keep accent color when off</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When checked, the icon stays accent-colored even when repeat is off</div>
     </div>
 
     <div id="playlistSettings" style="display: none;">
@@ -147,6 +180,12 @@
             </select>
             <div class="help-text">Select the audio playlist this button will start playing</div>
         </div>
+
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="playlistShuffle">
+            <label for="playlistShuffle">Start playlist shuffled</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When checked, the playlist starts shuffled</div>
 
         <button id="loadPlaylistsBtn">Load Playlists</button>
     </div>
@@ -259,12 +298,31 @@
                     opt.selected = true;
                     sel.appendChild(opt);
                 }
+                document.getElementById('playlistShuffle').checked = settings.playlistShuffle === true;
             }
 
             // Show navigation settings for next/previous buttons
             if (actionUUID === 'com.dreadheadhippy.ampdeckplus.next' || actionUUID === 'com.dreadheadhippy.ampdeckplus.previous') {
                 document.getElementById('navigationSettings').style.display = 'block';
-                document.getElementById('navigationIconSize').value = settings.navigationIconSize || '40';
+                document.getElementById('navigationIconSize').value = settings.navigationIconSize || '60';
+            }
+
+            // Show play/pause size setting for the play-pause button
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.play-pause') {
+                document.getElementById('playPauseSettings').style.display = 'block';
+                document.getElementById('playPauseIconSize').value = settings.playPauseIconSize || '60';
+            }
+
+            // Show shuffle settings
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.shuffle') {
+                document.getElementById('shuffleSettings').style.display = 'block';
+                document.getElementById('shuffleAccentOff').checked = settings.shuffleAccentOff === true;
+            }
+
+            // Show repeat settings
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.repeat') {
+                document.getElementById('repeatSettings').style.display = 'block';
+                document.getElementById('repeatAccentOff').checked = settings.repeatAccentOff === true;
             }
             
             // Show rating settings only for rating button
@@ -378,6 +436,18 @@
             if (actionInfo && (actionInfo.action === 'com.dreadheadhippy.ampdeckplus.next' || actionInfo.action === 'com.dreadheadhippy.ampdeckplus.previous')) {
                 settings.navigationIconSize = document.getElementById('navigationIconSize').value;
             }
+
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.play-pause') {
+                settings.playPauseIconSize = document.getElementById('playPauseIconSize').value;
+            }
+
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.shuffle') {
+                settings.shuffleAccentOff = document.getElementById('shuffleAccentOff').checked;
+            }
+
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.repeat') {
+                settings.repeatAccentOff = document.getElementById('repeatAccentOff').checked;
+            }
             
             if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.rating') {
                 settings.ratingDisplay = document.getElementById('ratingDisplay').value;
@@ -391,6 +461,7 @@
                 settings.playlistRatingKey = sel.value;
                 // Save raw title only (not "Title (N tracks)" display text)
                 settings.playlistName = selOpt?.dataset.title || selOpt?.text || '';
+                settings.playlistShuffle = document.getElementById('playlistShuffle').checked;
             }
 
             if (websocket && websocket.readyState === WebSocket.OPEN) {
@@ -422,11 +493,15 @@
         document.getElementById('clientName').addEventListener('change', saveSettings);
         document.getElementById('ratingDisplay').addEventListener('change', saveSettings);
         document.getElementById('navigationIconSize').addEventListener('change', saveSettings);
+        document.getElementById('playPauseIconSize').addEventListener('change', saveSettings);
+        document.getElementById('shuffleAccentOff').addEventListener('change', saveSettings);
+        document.getElementById('repeatAccentOff').addEventListener('change', saveSettings);
         document.getElementById('ratingFontSize').addEventListener('change', saveSettings);
         document.getElementById('ratingMode').addEventListener('change', saveSettings);
         document.getElementById('syncOffset').addEventListener('change', saveSettings);
         document.getElementById('debugMode').addEventListener('change', saveSettings);
         document.getElementById('playlistSelect').addEventListener('change', saveSettings);
+        document.getElementById('playlistShuffle').addEventListener('change', saveSettings);
 
         // Load Playlists from Plex server
         async function loadPlaylists(serverUrl, token, silent) {
