@@ -32,6 +32,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **🎨 Paused state no longer dims** — All buttons and the touch strip now stay fully lit and color-filled when playback is paused. Dimming only happens when Plexamp is disconnected / not running.
 - **🎛️ Canvas-drawn play/pause** — The play/pause button now renders its icons directly on canvas like all other buttons, with a configurable icon size (matching nav button options).
 - **🔀 Shuffle & Repeat redesign** — Accent-colored icons when on, always-visible white `ON`/`OFF`/`ALL`/`ONE` labels, and a new **"Keep accent color when off"** check box. **"Keep accent color when off"** keeps the icon accent-colored even in the off state.
+- **🎲 Start playlist shuffled** — The Playlist Carousel now has a **"Start playlist shuffled"** option. When enabled, pressing to play a playlist will shuffle it automatically.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -40,8 +41,8 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ## Features
 
 - **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause. When playback is paused, the album art displays with a gray overlay.
-- **Playlist Button** — Dedicated key action to assign playlists. Assign playlists to buttons, allowing you to start your playlists with the press of a button.
-- **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Load your playlists from the action settings.
+- **Playlist Button** — Dedicated key action to assign playlists. Assign playlists to buttons, allowing you to start your playlists with the press of a button. Enable **Start playlist shuffled** to shuffle on play.
+- **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Enable **Start playlist shuffled** to shuffle on play. Load your playlists from the action settings.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability.
 - **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
 - **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
@@ -172,6 +173,7 @@ Each dial panel can be configured independently:
 | **Panel Position** | This panel's position in the progress bar sequence, or None to disable |
 | **Text Color** | White, Light Gray, Orange, Amber, or Black |
 | **Dynamic Colors** | When enabled, accent colors are extracted from album art. When disabled, they stay orange. |
+| **Start playlist shuffled** | Only visible when Display Mode is set to Playlists. When checked, pressing to play a playlist will shuffle it. |
 
 For example, to have the progress bar span all 4 dials: set each panel to "4 panels" and positions 1, 2, 3, 4 from left to right.
 
