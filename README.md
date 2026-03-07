@@ -32,7 +32,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **🎨 Paused state no longer dims** — All buttons and the touch strip now stay fully lit and color-filled when playback is paused. Dimming only happens when Plexamp is disconnected / not running.
 - **🎛️ Canvas-drawn play/pause** — The play/pause button now renders its icons directly on canvas like all other buttons, with a configurable icon size (matching nav button options).
 - **🔀 Shuffle & Repeat redesign** — Accent-colored icons when on, always-visible white `ON`/`OFF`/`ALL`/`ONE` labels, and a new **"Keep accent color when off"** check box. **"Keep accent color when off"** keeps the icon accent-colored even in the off state.
-- **🎲 Start playlist shuffled** — The Playlist Carousel now has a **"Start playlist shuffled"** option. When enabled, pressing to play a playlist will shuffle it automatically.
+- **🎲 Start playlist shuffled** — The Playlist Carousel and playlist buttons now have a **"Start playlist shuffled"** checkbox. When enabled, pressing to play a playlist will shuffle it automatically.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
