@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+---
+
+## [2.0.8] - 2026-03-10
+
+### ✨ New Features
+- **1-Click Plex Authorization** — Sign in with Plex using the official PIN-based OAuth flow. Click **Sign in with Plex** in the Property Inspector, authorize in your browser, and Ampdeck+ automatically discovers your Plex server and Plexamp player from your Plex account — no manual token hunting, IP addresses, or port configuration required. Supports both owned and shared Plex servers. Manual configuration remains available in Advanced Settings for power users.
+
+---
+
 ## [2.0.7] - 2026-03-06
 
 ### ✨ New Features

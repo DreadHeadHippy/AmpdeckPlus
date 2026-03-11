@@ -27,12 +27,9 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.7
+## ⚡ What's New in v2.0.8
 
-- **🎨 Paused state no longer dims** — All buttons and the touch strip now stay fully lit and color-filled when playback is paused. Dimming only happens when Plexamp is disconnected / not running.
-- **🎛️ Canvas-drawn play/pause** — The play/pause button now renders its icons directly on canvas like all other buttons, with a configurable icon size (matching nav button options).
-- **🔀 Shuffle & Repeat redesign** — Accent-colored icons when on, always-visible white `ON`/`OFF`/`ALL`/`ONE` labels, and a new **"Keep accent color when off"** check box. **"Keep accent color when off"** keeps the icon accent-colored even in the off state.
-- **🎲 Start playlist shuffled** — The Playlist Carousel and playlist buttons now have a **"Start playlist shuffled"** checkbox. When enabled, pressing to play a playlist will shuffle it automatically.
+- **🔑 1-Click Plex Authorization** — Click **Sign in with Plex**, authorize in your browser, and Ampdeck+ automatically discovers your Plex server and Plexamp player from your Plex account. No more manual token hunting, IP addresses, or port numbers. Works with both owned and shared Plex servers. Manual configuration remains available in Advanced Settings for power users.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -145,15 +142,33 @@ The install scripts will update the plugin while preserving your settings.
 5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Volume Up**, **Volume Down**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
 6. Click any Ampdeck+ action and configure:
 
-### Connection Settings
+### Plex Setup
 
-Ampdeck+ connects to both your local Plexamp player and your Plex server:
+#### 1-Click Setup (Recommended)
+
+Ampdeck+ features automatic Plex authentication and discovery:
+
+1. Drag any Ampdeck+ action to a button slot in the Stream Deck app
+2. Click the button slot to open the Property Inspector (config panel)
+3. Click **Sign in with Plex**
+4. Authorize Ampdeck+ in the browser window that opens
+5. That's it! Your Plex server and Plexamp player are now configured automatically
+
+The setup process:
+- Uses Plex's official PIN-based authentication (no passwords needed)
+- Automatically discovers your Plex server from your account
+- Auto-detects your local Plexamp player
+- Securely stores your auth token
+
+#### Manual Setup (Advanced)
+
+If you prefer manual configuration or need to override auto-discovered settings, expand **Advanced Settings** in the Property Inspector:
 
 | Setting | Description |
 |---------|-------------|
-| **Player URL** | Your Plexamp player address. Defaults to `http://localhost:32500` for headless Plexamp. Desktop users may need a different port — check Plexamp's settings. |
-| **Server URL** | Your Plex server address (e.g. `http://192.168.1.100:32400`) |
-| **Plex Token** | See [Finding Your Plex Token](#finding-your-plex-token) below |
+| **Player URL** | Override auto-discovered Plexamp player address. Default: `http://localhost:32500` for headless Plexamp. Desktop users may need a different port — check Plexamp's settings. |
+| **Server URL** | Override auto-discovered Plex server address (e.g. `http://192.168.1.100:32400`) |
+| **Plex Token** | Override token from Plex sign-in. See [Finding Your Plex Token](#finding-your-plex-token) if needed. |
 | **Client Name** | Your computer's name as it appears in the Plex dashboard (used for server fallback) |
 
 Use the **Test Player** button to verify the Plexamp connection and **Test Server** to verify the Plex server connection.
@@ -164,7 +179,7 @@ Each dial panel can be configured independently:
 
 | Setting | Options |
 |---------|---------|
-| **Display Mode** | Artist, Album, Track Title, or Time |
+| **Display Mode** | Artist, Album, Track Title, Time, or Playlists |
 | **Font Size** | Small (12) through XX-Large (28) |
 | **Dial Action** | None, Next/Previous (rotate), Volume (rotate), or Star Rating (rotate) |
 | **Rating Mode** | Half Star (0.5 increment) or Full Star (1.0 increment) — only appears when Dial Action is set to Star Rating |
@@ -185,6 +200,8 @@ For example, to have the progress bar span all 4 dials: set each panel to "4 pan
 | **Debug Logging** | When enabled, logs detailed API requests and connection state to the browser console. Plex tokens are automatically sanitized in log output for safe sharing. |
 
 ## Finding Your Plex Token
+
+> **Note:** The 1-click setup handles authentication automatically. You only need this if using manual configuration.
 
 1. Open Plex Web (app.plex.tv) in your browser
 2. Play any media

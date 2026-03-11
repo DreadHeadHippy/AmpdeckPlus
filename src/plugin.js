@@ -139,6 +139,18 @@ function onWillDisappear(data) {
 
 function onDidReceiveGlobalSettings(data) {
     const settings = data.payload.settings || {};
+    
+    // Debug logging to track sign out issues
+    logger.info('Global settings received', {
+        hasToken: !!(settings.plexToken),
+        hasServer: !!(settings.plexServerUrl),
+        hasPlayer: !!(settings.playerUrl),
+        hasClient: !!(settings.clientName),
+        tokenLength: settings.plexToken ? settings.plexToken.length : 0,
+        serverUrl: settings.plexServerUrl || 'empty',
+        playerUrl: settings.playerUrl || 'empty'
+    });
+    
     // Global settings are the authoritative source for ALL preferences.
     // This includes display settings (dynamicColors, textColor, debugMode, syncOffset)
     // which must not be overwritten by per-action settings in applySettingsToGlobal.
@@ -146,11 +158,11 @@ function onDidReceiveGlobalSettings(data) {
     updateLogLevel();
     configurePlexConnection();
     
-    logger.debug('Global settings received');
+    logger.debug('Global settings applied');
     
-    // Start polling if configured
+    // Start polling if configured, stop if credentials removed
     if (settings.plexToken && settings.plexServerUrl) {
-        pollTimeline();
+        startPolling(); // restarts workers if they were stopped (e.g. after sign-out)
 
         // Load playlists for any carousel strips that appeared before the connection was ready
         state.getAllContexts().forEach(context => {
@@ -164,6 +176,12 @@ function onDidReceiveGlobalSettings(data) {
                 loadCarouselPlaylists(context);
             }
         });
+    } else {
+        // Credentials removed - stop polling and clear displays
+        logger.info('Credentials cleared - stopping polling and resetting displays');
+        stopPolling();
+        state.clearTrack();
+        updateAllDisplays();
     }
 }
 
@@ -173,7 +191,6 @@ function onDidReceiveSettings(data) {
     
     state.updateActionSettings(context, settings);
     applySettingsToGlobal(settings);
-    saveGlobalSettings();
     
     // Reset layout to force refresh
     state.lastLayoutState[context] = null;
@@ -192,7 +209,9 @@ function onDidReceiveSettings(data) {
 
 function onKeyDown(data) {
     const { context, action } = data;
-    
+
+    if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+
     // Track button hold for seek functionality
     state.buttonHoldState[context] = {
         pressTime: Date.now(),
@@ -351,9 +370,11 @@ function onDialRotate(data) {
     if (dialAction === 'skip') {
         if (ticks > 0) {
             playbackController.skipNext();
+            setTimeout(pollTimeline, 300);
             layoutManager.showStripOverlay(context, 'NEXT', '▶▶');
         } else if (ticks < 0) {
             playbackController.skipPrevious();
+            setTimeout(pollTimeline, 300);
             layoutManager.showStripOverlay(context, 'PREVIOUS', '◀◀');
         }
     } else if (dialAction === 'volume') {
@@ -456,6 +477,8 @@ function onTouchTap(data) {
 // ============================================
 
 async function handleButtonAction(action, context) {
+    if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+
     switch (action) {
         case ACTIONS.ALBUM_ART:
             await playbackController.togglePlayPause();
@@ -471,9 +494,11 @@ async function handleButtonAction(action, context) {
             break;
         case ACTIONS.NEXT:
             await playbackController.skipNext();
+            setTimeout(pollTimeline, 300);
             break;
         case ACTIONS.PREVIOUS:
             await playbackController.skipPrevious();
+            setTimeout(pollTimeline, 300);
             break;
         case ACTIONS.SHUFFLE:
             await playbackController.toggleShuffle();
@@ -596,16 +621,6 @@ function applySettingsToGlobal(_settings) {
     configurePlexConnection();
 }
 
-function saveGlobalSettings() {
-    if (connection && connection.isConnected()) {
-        connection.send({
-            event: 'setGlobalSettings',
-            context: state.pluginUUID,
-            payload: state.globalSettings
-        });
-    }
-}
-
 function updateLogLevel() {
     const debugMode = state.getGlobalSetting('debugMode', false);
     logger.setLevel(debugMode ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO);
@@ -616,8 +631,20 @@ function configurePlexConnection() {
     const token = state.getGlobalSetting('plexToken');
     const playerUrl = state.getGlobalSetting('playerUrl');
     
+    logger.debug('Configuring Plex connection', {
+        hasServer: !!serverUrl,
+        hasToken: !!token,
+        hasPlayer: !!playerUrl,
+        serverUrl: serverUrl || 'none',
+        playerUrl: playerUrl || 'none'
+    });
+    
     if (serverUrl && token) {
         plexConnection.configure(serverUrl, token, playerUrl);
+    } else {
+        // Clear connection if credentials are removed
+        logger.info('Missing credentials - resetting Plex connection');
+        plexConnection.reset();
     }
 }
 

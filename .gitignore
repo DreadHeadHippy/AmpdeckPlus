@@ -21,6 +21,13 @@ Desktop.ini
 # Node
 node_modules/
 
+# Python
+.venv/
+
 # Logs
 *.log
 npm-debug.log*
+
+# CodeQL
+codeql-db/
+*.sarif

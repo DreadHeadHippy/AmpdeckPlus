@@ -32,6 +32,24 @@ class PlexConnection {
     }
 
     /**
+     * Reset connection to unconfigured state
+     */
+    reset() {
+        this.playerUrl = PLEX.DEFAULT_PLAYER_URL;
+        this.serverUrl = null;
+        this.token = null;
+        this._serverMachineId = null;
+        logger.info('Plex connection reset');
+    }
+
+    /**
+     * Check if connection is properly configured
+     */
+    isConfigured() {
+        return !!(this.serverUrl && this.token);
+    }
+
+    /**
      * Create standard Plex headers
      */
     createHeaders(includeToken = true) {
@@ -54,6 +72,12 @@ class PlexConnection {
      * Execute command on local player (with server fallback)
      */
     async playerCommand(path, extraParams = null) {
+        // Prevent commands when not configured (signed out)
+        if (!this.isConfigured()) {
+            logger.debug('Player command blocked: not configured');
+            throw new Error('Plex connection not configured');
+        }
+
         const commandID = state.getNextCommandID();
         let url = `${this.playerUrl}${path}`;
 
@@ -97,6 +121,12 @@ class PlexConnection {
      * Execute command via Plex server
      */
     async serverCommand(path, extraParams = null) {
+        // Prevent commands when not configured (signed out)
+        if (!this.isConfigured()) {
+            logger.debug('Server command blocked: not configured');
+            throw new Error('Plex connection not configured');
+        }
+
         const machineId = this.getClientId();
         
         if (!machineId || !this.serverUrl || !this.token) {

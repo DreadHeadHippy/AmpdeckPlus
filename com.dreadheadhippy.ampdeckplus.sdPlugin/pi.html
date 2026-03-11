@@ -99,9 +99,110 @@
         #status.error { border-left: 3px solid #f44336; }
         #status.warning { border-left: 3px solid #ff9800; }
         #status.info { border-left: 3px solid #2196F3; }
+        .collapse-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .collapse-toggle::before {
+            content: '▶';
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        .collapse-toggle.open::before {
+            transform: rotate(90deg);
+        }
+        .collapsible-content {
+            display: none;
+        }
+        .collapsible-content.open {
+            display: block;
+        }
+        #authSection {
+            margin-bottom: 16px;
+        }
+        #authButton {
+            width: 100%;
+        }
+        #authStatus {
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-size: 11px;
+            line-height: 1.6;
+            display: none;
+        }
+        #authStatus.show { display: block; }
+        #authStatus .check-mark {
+            color: #4CAF50;
+            margin-right: 4px;
+        }
+        #authInfo {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-size: 11px;
+            line-height: 1.6;
+            border-left: 3px solid #4CAF50;
+        }
+        #authInfo.show { display: block; }
+        #authInfo .info-line {
+            margin: 4px 0;
+        }
+        #authInfo .label {
+            color: #969696;
+            margin-right: 6px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .btn-group button {
+            flex: 1;
+            margin-top: 0;
+        }
+        button.danger {
+            background: #d13438;
+        }
+        button.danger:hover {
+            background: #e04347;
+        }
     </style>
 </head>
 <body>
+    <!-- Plex Setup Section -->
+    <div id="authSection">
+        <div class="sdpi-heading">Plex Setup</div>
+        
+        <button id="authButton">Sign in with Plex</button>
+        
+        <div id="authStatus"></div>
+        <div id="authInfo"></div>
+        
+        <div id="serverSelection" style="display: none; margin-top: 10px;">
+            <div class="sdpi-item">
+                <label>Select Your Server</label>
+                <select id="serverSelect">
+                    <option value="">-- Select a server --</option>
+                </select>
+                <div class="help-text">Multiple servers found on your account</div>
+            </div>
+            <button id="confirmServerBtn">Continue</button>
+        </div>
+        
+        <div id="signOutSection" style="display: none; margin-top: 8px;">
+            <button id="signOutButton" class="danger">Sign Out</button>
+        </div>
+        
+    </div>
+
     <div class="sdpi-heading">Appearance</div>
 
     <div class="sdpi-item">
@@ -224,35 +325,36 @@
         </div>
     </div>
 
-    <div class="sdpi-heading">Plexamp Player</div>
+    <!-- Advanced Settings (Manual Configuration) -->
+    <div class="sdpi-heading collapse-toggle" id="advancedToggle">Advanced Settings</div>
+    <div class="collapsible-content" id="advancedContent">
+        <div class="sdpi-item">
+            <label>Player URL</label>
+            <input type="text" id="playerUrl" placeholder="http://localhost:32500">
+            <div class="help-text">Override auto-discovered Plexamp player URL</div>
+        </div>
 
-    <div class="sdpi-item">
-        <label>Player URL</label>
-        <input type="text" id="playerUrl" placeholder="http://localhost:32500">
-        <div class="help-text">Local Plexamp address. Default: http://localhost:32500 (headless). Desktop users may need a different port.</div>
+        <div class="sdpi-item">
+            <label>Server URL</label>
+            <input type="text" id="plexServerUrl" placeholder="http://your-server-ip:32400">
+            <div class="help-text">Override auto-discovered Plex server URL</div>
+        </div>
+        
+        <div class="sdpi-item">
+            <label>Plex Token</label>
+            <input type="password" id="plexToken" placeholder="Your Plex token">
+            <div class="help-text">Override token from Plex sign-in</div>
+        </div>
+        
+        <div class="sdpi-item">
+            <label>Client Name</label>
+            <input type="text" id="clientName" placeholder="e.g. My PC">
+            <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
+        </div>
+        <input type="hidden" id="plexServerName">
     </div>
 
-    <div class="sdpi-heading">Plex Server</div>
-    
-    <div class="sdpi-item">
-        <label>Server URL</label>
-        <input type="text" id="plexServerUrl" placeholder="http://your-server-ip:32400">
-        <div class="help-text">Your Plex server address with port (used for metadata and album art)</div>
-    </div>
-    
-    <div class="sdpi-item">
-        <label>Plex Token</label>
-        <input type="password" id="plexToken" placeholder="Your Plex token">
-        <div class="help-text">Find in Plex settings or browser network tab</div>
-    </div>
-    
-    <div class="sdpi-item">
-        <label>Client Name</label>
-        <input type="text" id="clientName" placeholder="e.g. My PC">
-        <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
-    </div>
-
-    <div class="sdpi-heading">Advanced</div>
+    <div class="sdpi-heading">Testing & Debug</div>
 
     <div class="sdpi-item">
         <label>Time Offset (ms)</label>
@@ -273,6 +375,595 @@
     <div id="status"></div>
 
     <script>
+        // ===== Plex Auth & Discovery Functions =====
+        const PLEX_CLIENT_ID = 'com.dreadheadhippy.ampdeckplus';
+        let authPollInterval = null;
+        let authPinId = null;
+        let authCompleting = false; // module-level guard against concurrent completions
+
+        async function startPlexAuth() {
+            if (authPinId || authCompleting) return; // already in progress
+            const authBtn = document.getElementById('authButton');
+            const authStatusEl = document.getElementById('authStatus');
+            
+            authBtn.disabled = true;
+            authBtn.textContent = 'Connecting to Plex...';
+            authStatusEl.className = 'show';
+            authStatusEl.innerHTML = 'Requesting PIN from Plex...';
+
+            try {
+                // Phase 1: Get PIN
+                const pinResponse = await fetch('https://plex.tv/api/v2/pins?strong=true', {
+                    method: 'POST',
+                    headers: {
+                        'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                        'X-Plex-Product': 'Ampdeck+',
+                        'X-Plex-Version': '2.0.0',
+                        'X-Plex-Platform': 'Stream Deck',
+                        'X-Plex-Device': 'Stream Deck',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!pinResponse.ok) {
+                    throw new Error('Failed to create PIN: HTTP ' + pinResponse.status);
+                }
+
+                const pinData = await pinResponse.json();
+                authPinId = pinData.id;
+                const pin = pinData.code;
+
+                // Open auth URL in browser
+                const authUrl = `https://app.plex.tv/auth#?clientID=${encodeURIComponent(PLEX_CLIENT_ID)}&code=${encodeURIComponent(pin)}&context[device][product]=Ampdeck%2B`;
+                window.open(authUrl, '_blank');
+
+                // Show waiting message
+                authBtn.textContent = 'Waiting for authorization...';
+                authStatusEl.innerHTML = `
+                    <div>Please authorize Ampdeck+ in the browser window that just opened.</div>
+                    <div style="margin-top: 8px; color: #969696;">Waiting for you to click "Authorize"...</div>
+                `;
+
+                // Start polling for token
+                pollForAuthToken();
+            } catch (error) {
+                authStatusEl.innerHTML = '✗ Failed to start auth: ' + error.message;
+                authBtn.disabled = false;
+                authBtn.textContent = 'Sign in with Plex';
+            }
+        }
+
+        async function pollForAuthToken() {
+            let attempts = 0;
+            const maxAttempts = 100; // 5 minutes at 3s intervals
+
+            authPollInterval = setInterval(async () => {
+                if (authCompleting) return;
+                attempts++;
+
+                if (attempts > maxAttempts) {
+                    clearInterval(authPollInterval);
+                    authPollInterval = null;
+                    document.getElementById('authStatus').innerHTML = '✗ Authorization timeout. Please try again.';
+                    document.getElementById('authButton').disabled = false;
+                    document.getElementById('authButton').textContent = 'Sign in with Plex';
+                    authPinId = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`https://plex.tv/api/v2/pins/${authPinId}`, {
+                        headers: {
+                            'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.authToken) {
+                        authCompleting = true;
+                        clearInterval(authPollInterval);
+                        authPollInterval = null;
+                        authPinId = null;
+                        await completeAuth(data.authToken);
+                        authCompleting = false;
+                    }
+                } catch (error) {
+                    if (authCompleting) return;
+                    clearInterval(authPollInterval);
+                    authPollInterval = null;
+                    authPinId = null;
+                    document.getElementById('authStatus').innerHTML = '✗ Auth check failed: ' + error.message;
+                    document.getElementById('authButton').disabled = false;
+                    document.getElementById('authButton').textContent = 'Sign in with Plex';
+                }
+            }, 3000);
+        }
+
+        async function completeAuth(authToken) {
+            const authStatusEl = document.getElementById('authStatus');
+            const authBtn = document.getElementById('authButton');
+            const authInfoEl = document.getElementById('authInfo');
+
+            authStatusEl.innerHTML = '✓ Authorized! Discovering servers...';
+
+            try {
+                // Get user info
+                const userInfo = await getUserInfo(authToken);
+                const username = userInfo ? userInfo.title : 'Unknown';
+
+                // Phase 2: Discover servers
+                const { servers, players } = await discoverServers(authToken);
+
+                if (servers.length === 0) {
+                    throw new Error('No Plex servers found. Make sure your Plex Media Server is running and your account has access to at least one server.');
+                }
+
+                // Store for later use
+                window._plexAuthData = {
+                    authToken,
+                    username,
+                    servers,
+                    players
+                };
+
+                if (servers.length === 1) {
+                    // Auto-select single server
+                    await finishAuthWithServer(servers[0], authToken, username);
+                } else {
+                    // Show server selection UI
+                    authStatusEl.innerHTML = `✓ Authorized! Found ${servers.length} servers.`;
+                    document.getElementById('serverSelection').style.display = 'block';
+                    
+                    const serverSelect = document.getElementById('serverSelect');
+                    serverSelect.innerHTML = '<option value="">-- Select a server --</option>';
+                    
+                    servers.forEach((server, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = server.owned ? server.name : `${server.name} (shared)`;
+                        serverSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('[Ampdeck+ Setup] Auth failed:', error);
+                authStatusEl.innerHTML = '✗ Setup failed: ' + error.message;
+                authBtn.style.display = 'block';
+                authBtn.disabled = false;
+                authBtn.textContent = 'Sign in with Plex';
+            }
+        }
+
+        async function finishAuthWithServer(server, authToken, username) {
+            const authStatusEl = document.getElementById('authStatus');
+            const authBtn = document.getElementById('authButton');
+            const authInfoEl = document.getElementById('authInfo');
+            
+            authStatusEl.innerHTML = '✓ Testing server connections...';
+
+            try {
+                const bestConn = await findBestServerConnection(server, authToken);
+                if (!bestConn) {
+                    throw new Error('Could not connect to server: ' + server.name);
+                }
+                
+                const serverUrl = bestConn;
+
+                authStatusEl.innerHTML = '✓ Server found! Discovering Plexamp player...';
+
+                // Phase 3: Discover Plexamp — pick the right player from resources
+                let playerUrl = null;
+                let playerName = null;
+                const knownPlayers = window._plexAuthData?.players || [];
+
+                if (knownPlayers.length > 0) {
+                    // Extract the server's local IP from the decoded serverUrl (e.g. http://10.0.0.10:32400)
+                    let serverIp = null;
+                    try { serverIp = new URL(serverUrl).hostname; } catch {}
+
+                    const PLEXAMP_PORTS = [32500, 32433];
+
+                    // Priority 1: player on same IP as server, on a Plexamp port
+                    let best = null;
+                    if (serverIp) {
+                        for (const p of knownPlayers) {
+                            const conn = p.connections.find(c =>
+                                !c.relay &&
+                                PLEXAMP_PORTS.some(port => c.uri === `http://${serverIp}:${port}`)
+                            );
+                            if (conn) { best = { player: p, conn }; break; }
+                        }
+                    }
+
+                    // Priority 2: any player on a Plexamp port with a local connection
+                    if (!best) {
+                        for (const p of knownPlayers) {
+                            const conn = p.connections.find(c =>
+                                c.local && !c.relay &&
+                                PLEXAMP_PORTS.some(port => c.uri.endsWith(`:${port}`))
+                            );
+                            if (conn) { best = { player: p, conn }; break; }
+                        }
+                    }
+
+                    // Priority 3: first local non-relay player (last resort)
+                    if (!best) {
+                        for (const p of knownPlayers) {
+                            const conn = p.connections.find(c => c.local && !c.relay);
+                            if (conn) { best = { player: p, conn }; break; }
+                        }
+                    }
+
+                    if (best) {
+                        playerUrl = best.conn.uri;
+                        playerName = best.player.name;
+                    }
+                }
+
+                // Fall back to port probing if not found in resources
+                if (!playerUrl) {
+                    playerUrl = await discoverPlexamp(serverUrl, authToken);
+                }
+
+                // Populate fields
+                document.getElementById('plexToken').value = authToken;
+                document.getElementById('plexServerUrl').value = serverUrl;
+                document.getElementById('playerUrl').value = playerUrl || '';
+                document.getElementById('clientName').value = playerName || '';
+                document.getElementById('plexServerName').value = server.name || '';
+
+                saveSettings();
+
+                // Update UI by calling checkAuthState directly — avoids race conditions
+                // with WebSocket echo timing overwriting the DOM
+                authStatusEl.style.display = 'none';
+                authBtn.style.display = 'none';
+                authBtn.disabled = false;
+                authBtn.textContent = 'Sign in with Plex';
+                document.getElementById('serverSelection').style.display = 'none';
+                await checkAuthState({
+                    plexToken: authToken,
+                    plexServerUrl: serverUrl,
+                    playerUrl: playerUrl || '',
+                    plexServerName: server.name || ''
+                });
+
+                // Clean up
+                delete window._plexAuthData;
+            } catch (error) {
+                console.error('[Ampdeck+ Setup] Server connection failed:', error);
+                authStatusEl.innerHTML = '✗ Setup failed: ' + error.message;
+                authBtn.style.display = 'block';
+                authBtn.disabled = false;
+                authBtn.textContent = 'Sign in with Plex';
+                document.getElementById('serverSelection').style.display = 'none';
+            }
+        }
+
+        async function getUserInfo(authToken) {
+            try {
+                const response = await fetch('https://plex.tv/api/v2/user', {
+                    headers: {
+                        'X-Plex-Token': authToken,
+                        'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                return {
+                    username: data.username,
+                    email: data.email,
+                    title: data.title || data.username
+                };
+            } catch {
+                return null;
+            }
+        }
+
+        async function discoverServers(authToken) {
+            const response = await fetch('https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=0', {
+                headers: {
+                    'X-Plex-Token': authToken,
+                    'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to discover servers: HTTP ' + response.status);
+            }
+
+            const resources = await response.json();
+            
+            // Include all servers the user has access to (owned + shared)
+            const servers = resources.filter(r => 
+                r.provides && 
+                r.provides.includes('server') && 
+                r.connections && 
+                r.connections.length > 0
+            );
+            
+            // Also find owned player resources (Plexamp instances)
+            const players = resources.filter(r =>
+                r.provides &&
+                r.provides.includes('player') &&
+                r.connections &&
+                r.connections.length > 0 &&
+                r.owned === true &&
+                !r.provides.includes('server') // exclude the Plex server itself
+            );
+            
+            return {
+                servers: servers.map(server => ({
+                    name: server.name,
+                    clientIdentifier: server.clientIdentifier,
+                    connections: server.connections,
+                    owned: server.owned
+                })),
+                players: players.map(p => ({
+                    name: p.name,
+                    clientIdentifier: p.clientIdentifier,
+                    connections: p.connections
+                }))
+            };
+        }
+
+        async function testServerConnection(uri, authToken) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            console.log('[Ampdeck+ Setup] Testing server connection:', uri);
+
+            try {
+                const response = await fetch(`${uri}/`, {
+                    headers: {
+                        'X-Plex-Token': authToken,
+                        'X-Plex-Client-Identifier': PLEX_CLIENT_ID
+                    },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                const success = response.ok;
+                console.log('[Ampdeck+ Setup] Server connection test result:', uri, success ? '✓' : '✗');
+                return success;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                console.log('[Ampdeck+ Setup] Server connection test failed:', uri, err.message);
+                return false;
+            }
+        }
+
+        // Decode a Plex plex.direct hostname to a direct http:// URL
+        // e.g. https://10-0-0-10.abc.plex.direct:32400 => http://10.0.0.10:32400
+        function decodePlexDirectToLocal(uri) {
+            try {
+                const url = new URL(uri);
+                const firstSegment = url.hostname.split('.')[0];
+                if (/^\d+-\d+-\d+-\d+$/.test(firstSegment)) {
+                    const ip = firstSegment.replace(/-/g, '.');
+                    const port = url.port || '32400';
+                    return `http://${ip}:${port}`;
+                }
+            } catch {}
+            return null;
+        }
+
+        async function findBestServerConnection(server, authToken) {
+            const authStatusEl = document.getElementById('authStatus');
+
+            authStatusEl.innerHTML = `Selecting best connection for ${server.name}...<br><small style="color: #969696;">Found ${server.connections.length} possible connection(s)</small>`;
+
+            // Plex uses plex.direct DNS for ALL connections — filter on the relay flag, not URL pattern
+            const nonRelayConnections = [...server.connections]
+                .filter(conn => conn.relay !== true)
+                .sort((a, b) => {
+                    if (a.local && !b.local) return -1;
+                    if (!a.local && b.local) return 1;
+                    return 0;
+                });
+
+            if (nonRelayConnections.length > 0) {
+                const best = nonRelayConnections[0];
+                let finalUri = best.uri;
+                if (best.local && best.uri.includes('.plex.direct')) {
+                    const decoded = decodePlexDirectToLocal(best.uri);
+                    if (decoded) finalUri = decoded;
+                }
+
+                const shortUri = finalUri.replace(/^https?:\/\//, '');
+                authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${shortUri}</small>`;
+                return finalUri;
+            }
+            
+            // Fall back to relay
+            authStatusEl.innerHTML = '<span style="color: #ff9800;">⚠ No local connections available, using relay...</span>';
+            
+            const relayConn = server.connections.find(conn => conn.relay === true);
+            if (relayConn) {
+                const shortUri = relayConn.uri.replace(/^https?:\/\//, '').substring(0, 40) + '...';
+                authStatusEl.innerHTML = `⚠ Using relay connection<br><small style="color: #ff9800;">${shortUri}<br>Local network connection not available</small>`;
+                return relayConn.uri;
+            }
+            
+            authStatusEl.innerHTML = '✗ No connections available';
+            return null;
+        }
+
+        async function testPlexampPort(port) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1000);
+
+            try {
+                const response = await fetch(`http://localhost:${port}/player/timeline/poll?wait=0`, {
+                    headers: { 'X-Plex-Client-Identifier': PLEX_CLIENT_ID },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                return true;
+            } catch {
+                clearTimeout(timeoutId);
+                return false;
+            }
+        }
+
+        async function discoverPlexampByProbing() {
+            const ports = [32500, 32433, 32400];
+            for (const port of ports) {
+                if (await testPlexampPort(port)) {
+                    return `http://localhost:${port}`;
+                }
+            }
+            return null;
+        }
+
+        async function discoverPlexampViaServer(serverUrl, authToken) {
+            try {
+                const response = await fetch(`${serverUrl}/clients`, {
+                    headers: {
+                        'X-Plex-Token': authToken,
+                        'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) return null;
+
+                const data = await response.json();
+                const clients = data.MediaContainer?.Server || [];
+                const plexampClient = clients.find(client => 
+                    client.product && client.product.toLowerCase().includes('plexamp')
+                );
+
+                if (plexampClient && plexampClient.host && plexampClient.port) {
+                    return `http://${plexampClient.host}:${plexampClient.port}`;
+                }
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        async function discoverPlexamp(serverUrl, authToken) {
+            let playerUrl = await discoverPlexampByProbing();
+            if (playerUrl) return playerUrl;
+
+            if (serverUrl && authToken) {
+                playerUrl = await discoverPlexampViaServer(serverUrl, authToken);
+                if (playerUrl) return playerUrl;
+            }
+
+            return null;
+        }
+
+        function signOut() {
+            if (!confirm('Sign out from Plex? This will clear your auth token and connection settings.')) {
+                return;
+            }
+
+            console.log('[Ampdeck+ Setup] Starting sign out process');
+
+            // Clear all auth-related fields in UI
+            document.getElementById('plexToken').value = '';
+            document.getElementById('plexServerUrl').value = '';
+            document.getElementById('playerUrl').value = '';
+            document.getElementById('clientName').value = '';
+            document.getElementById('plexServerName').value = '';
+            
+            // Build completely empty credentials (keep other settings)
+            const clearedSettings = {
+                // Keep display preferences
+                textColor: document.getElementById('textColor').value,
+                dynamicColors: document.getElementById('dynamicColors').checked,
+                syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
+                debugMode: document.getElementById('debugMode').checked,
+                
+                // CLEAR all credentials explicitly
+                playerUrl: '',
+                plexServerUrl: '',
+                plexToken: '',
+                clientName: '',
+                plexServerName: ''
+            };
+            
+            console.log('[Ampdeck+ Setup] Sending cleared global settings');
+            
+            // Send cleared settings via WebSocket
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                // First send as global settings (this is the authoritative source)
+                websocket.send(JSON.stringify({
+                    event: 'setGlobalSettings',
+                    context: uuid,
+                    payload: clearedSettings
+                }));
+                
+                // Also send to current context
+                websocket.send(JSON.stringify({
+                    event: 'setSettings',
+                    context: uuid,
+                    payload: clearedSettings
+                }));
+                
+                // Request fresh global settings to confirm
+                setTimeout(() => {
+                    websocket.send(JSON.stringify({
+                        event: 'getGlobalSettings',
+                        context: uuid
+                    }));
+                    console.log('[Ampdeck+ Setup] Requested fresh global settings');
+                }, 100);
+            }
+
+            // Reset UI to sign-in state
+            const authBtn = document.getElementById('authButton');
+            const authInfoEl = document.getElementById('authInfo');
+            const authStatusEl = document.getElementById('authStatus');
+            
+            authBtn.style.display = 'block';
+            authBtn.disabled = false;
+            authBtn.textContent = 'Sign in with Plex';
+            authStatusEl.style.display = 'none';
+            authStatusEl.innerHTML = '';
+            authInfoEl.style.display = 'none';
+            authInfoEl.className = '';
+            authInfoEl.innerHTML = '';
+            document.getElementById('signOutSection').style.display = 'none';
+            
+            console.log('[Ampdeck+ Setup] Sign out complete');
+        }
+
+        // Event listeners for auth
+        document.getElementById('authButton').addEventListener('click', startPlexAuth);
+        document.getElementById('signOutButton').addEventListener('click', signOut);
+        document.getElementById('confirmServerBtn').addEventListener('click', function() {
+            const serverSelect = document.getElementById('serverSelect');
+            const serverIndex = parseInt(serverSelect.value);
+            
+            if (isNaN(serverIndex) || !window._plexAuthData) {
+                document.getElementById('authStatus').innerHTML = '✗ Please select a server';
+                return;
+            }
+            
+            const { servers, authToken, username } = window._plexAuthData;
+            const selectedServer = servers[serverIndex];
+            
+            finishAuthWithServer(selectedServer, authToken, username);
+        });
+
+        // Collapsible advanced settings
+        document.getElementById('advancedToggle').addEventListener('click', function() {
+            const content = document.getElementById('advancedContent');
+            const toggle = document.getElementById('advancedToggle');
+            content.classList.toggle('open');
+            toggle.classList.toggle('open');
+        });
+
+        // ===== Stream Deck Connection =====
         let websocket = null;
         let uuid = null;
         let actionInfo = null;
@@ -360,14 +1051,26 @@
                 const msg = JSON.parse(evt.data);
                 if (msg.event === 'didReceiveGlobalSettings') {
                     const s = msg.payload.settings || {};
-                    if (s.playerUrl) document.getElementById('playerUrl').value = s.playerUrl;
-                    if (s.plexServerUrl) document.getElementById('plexServerUrl').value = s.plexServerUrl;
-                    if (s.plexToken) document.getElementById('plexToken').value = s.plexToken;
-                    if (s.clientName) document.getElementById('clientName').value = s.clientName;
-                    if (s.syncOffset !== undefined) document.getElementById('syncOffset').value = s.syncOffset;
-                    if (s.textColor) document.getElementById('textColor').value = s.textColor;
+                    console.log('[Ampdeck+ PI] Received global settings:', {
+                        hasToken: !!(s.plexToken),
+                        hasServer: !!(s.plexServerUrl),
+                        hasPlayer: !!(s.playerUrl),
+                        hasClient: !!(s.clientName)
+                    });
+                    
+                    // Always update fields even if empty (important for sign out!)
+                    document.getElementById('playerUrl').value = s.playerUrl || '';
+                    document.getElementById('plexServerUrl').value = s.plexServerUrl || '';
+                    document.getElementById('plexToken').value = s.plexToken || '';
+                    document.getElementById('clientName').value = s.clientName || '';
+                    document.getElementById('plexServerName').value = s.plexServerName || '';
+                    document.getElementById('syncOffset').value = s.syncOffset !== undefined ? s.syncOffset : 0;
+                    document.getElementById('textColor').value = s.textColor || '#E5A00D';
                     if (s.dynamicColors !== undefined) document.getElementById('dynamicColors').checked = s.dynamicColors;
                     if (s.debugMode !== undefined) document.getElementById('debugMode').checked = s.debugMode;
+
+                    // Check if already authenticated
+                    checkAuthState(s);
 
                     // Auto-load playlists once credentials arrive (no need to click the button)
                     if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.playlist') {
@@ -379,6 +1082,64 @@
                     }
                 }
             };
+        }
+
+        async function checkAuthState(settings) {
+            const token = (settings.plexToken || '').trim();
+            const serverUrl = (settings.plexServerUrl || '').trim();
+            const playerUrl = (settings.playerUrl || '').trim();
+            const savedServerName = (settings.plexServerName || '').trim();
+
+            if (token && serverUrl) {
+                // Prefer the saved Plex server name; fall back to hostname from URL
+                const isRelay = serverUrl.includes('.plex.direct');
+                let serverName = savedServerName;
+                if (!serverName) {
+                    try { serverName = new URL(serverUrl).hostname; } catch { serverName = serverUrl; }
+                }
+                const serverDisplay = isRelay
+                    ? `${serverName} <span style="color: #ff9800;">(via relay)</span>`
+                    : serverName;
+
+                // User is authenticated - show auth info
+                try {
+                    const userInfo = await getUserInfo(token);
+                    const username = userInfo ? userInfo.title : 'Authenticated User';
+
+                    document.getElementById('authButton').style.display = 'none';
+                    document.getElementById('authStatus').style.display = 'none';
+                    document.getElementById('authInfo').className = 'show';
+                    document.getElementById('authInfo').innerHTML = `
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Signed in as:</span>${username}</div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Server:</span>${serverDisplay}</div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${playerUrl || 'Not configured'}</div>
+                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${serverUrl}</div>
+                        ${isRelay ? '<div style="margin-top: 4px; font-size: 10px; color: #ff9800;">⚠ Using relay connection - local connection not available</div>' : ''}
+                    `;
+                    document.getElementById('signOutSection').style.display = 'block';
+                } catch (err) {
+                    // Even if getUserInfo fails, we have valid credentials, so keep showing success
+                    console.warn('[Ampdeck+ Setup] getUserInfo failed in checkAuthState, but credentials exist:', err);
+
+                    document.getElementById('authButton').style.display = 'none';
+                    document.getElementById('authStatus').style.display = 'none';
+                    document.getElementById('authInfo').className = 'show';
+                    document.getElementById('authInfo').innerHTML = `
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Configured</span></div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Server:</span>${serverDisplay}</div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${playerUrl || 'Not configured'}</div>
+                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${serverUrl}</div>
+                        ${isRelay ? '<div style="margin-top: 4px; font-size: 10px; color: #ff9800;">⚠ Using relay connection - local connection not available</div>' : ''}
+                    `;
+                    document.getElementById('signOutSection').style.display = 'block';
+                }
+            } else {
+                // Not authenticated
+                document.getElementById('authButton').style.display = 'block';
+                document.getElementById('authInfo').style.display = 'none';
+                document.getElementById('authStatus').style.display = 'none';
+                document.getElementById('signOutSection').style.display = 'none';
+            }
         }
 
         function validateUrl(url, allowLocalHttp) {
@@ -428,6 +1189,7 @@
                 plexServerUrl: serverUrl,
                 plexToken: document.getElementById('plexToken').value.trim(),
                 clientName: document.getElementById('clientName').value.trim(),
+                plexServerName: document.getElementById('plexServerName').value.trim(),
                 syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
                 debugMode: document.getElementById('debugMode').checked
             };
