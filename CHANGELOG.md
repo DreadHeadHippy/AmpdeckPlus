@@ -4,6 +4,13 @@
 
 ---
 
+## [2.0.9] - 2026-03-12
+
+### 🔒 Security
+- **XSS fix in Property Inspector** — All user-controlled and API-sourced values (`username`, `serverName`, `serverUrl`, `playerUrl`, `server.name`, connection URIs, `error.message`) are now HTML-escaped before being written to `innerHTML` in `pi.html`. Previously, a malicious Plex server or crafted API response could inject arbitrary HTML/script content into the Stream Deck Property Inspector UI (CWE-79 / CodeQL `js/xss`). Fixed by introducing an `escapeHtml()` utility and applying it at every tainted `innerHTML` sink.
+
+---
+
 ## [2.0.8] - 2026-03-10
 
 ### ✨ New Features

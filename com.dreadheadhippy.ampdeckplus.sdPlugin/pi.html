@@ -375,6 +375,16 @@
     <div id="status"></div>
 
     <script>
+        // ===== Utility =====
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // ===== Plex Auth & Discovery Functions =====
         const PLEX_CLIENT_ID = 'com.dreadheadhippy.ampdeckplus';
         let authPollInterval = null;
@@ -427,7 +437,7 @@
                 // Start polling for token
                 pollForAuthToken();
             } catch (error) {
-                authStatusEl.innerHTML = '✗ Failed to start auth: ' + error.message;
+                authStatusEl.innerHTML = '✗ Failed to start auth: ' + escapeHtml(error.message);
                 authBtn.disabled = false;
                 authBtn.textContent = 'Sign in with Plex';
             }
@@ -478,7 +488,7 @@
                     clearInterval(authPollInterval);
                     authPollInterval = null;
                     authPinId = null;
-                    document.getElementById('authStatus').innerHTML = '✗ Auth check failed: ' + error.message;
+                    document.getElementById('authStatus').innerHTML = '✗ Auth check failed: ' + escapeHtml(error.message);
                     document.getElementById('authButton').disabled = false;
                     document.getElementById('authButton').textContent = 'Sign in with Plex';
                 }
@@ -532,7 +542,7 @@
                 }
             } catch (error) {
                 console.error('[Ampdeck+ Setup] Auth failed:', error);
-                authStatusEl.innerHTML = '✗ Setup failed: ' + error.message;
+                authStatusEl.innerHTML = '✗ Setup failed: ' + escapeHtml(error.message);
                 authBtn.style.display = 'block';
                 authBtn.disabled = false;
                 authBtn.textContent = 'Sign in with Plex';
@@ -637,7 +647,7 @@
                 delete window._plexAuthData;
             } catch (error) {
                 console.error('[Ampdeck+ Setup] Server connection failed:', error);
-                authStatusEl.innerHTML = '✗ Setup failed: ' + error.message;
+                authStatusEl.innerHTML = '✗ Setup failed: ' + escapeHtml(error.message);
                 authBtn.style.display = 'block';
                 authBtn.disabled = false;
                 authBtn.textContent = 'Sign in with Plex';
@@ -757,7 +767,7 @@
         async function findBestServerConnection(server, authToken) {
             const authStatusEl = document.getElementById('authStatus');
 
-            authStatusEl.innerHTML = `Selecting best connection for ${server.name}...<br><small style="color: #969696;">Found ${server.connections.length} possible connection(s)</small>`;
+            authStatusEl.innerHTML = `Selecting best connection for ${escapeHtml(server.name)}...<br><small style="color: #969696;">Found ${server.connections.length} possible connection(s)</small>`;
 
             // Plex uses plex.direct DNS for ALL connections — filter on the relay flag, not URL pattern
             const nonRelayConnections = [...server.connections]
@@ -777,7 +787,7 @@
                 }
 
                 const shortUri = finalUri.replace(/^https?:\/\//, '');
-                authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${shortUri}</small>`;
+                authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${escapeHtml(shortUri)}</small>`;
                 return finalUri;
             }
             
@@ -787,7 +797,7 @@
             const relayConn = server.connections.find(conn => conn.relay === true);
             if (relayConn) {
                 const shortUri = relayConn.uri.replace(/^https?:\/\//, '').substring(0, 40) + '...';
-                authStatusEl.innerHTML = `⚠ Using relay connection<br><small style="color: #ff9800;">${shortUri}<br>Local network connection not available</small>`;
+                authStatusEl.innerHTML = `⚠ Using relay connection<br><small style="color: #ff9800;">${escapeHtml(shortUri)}<br>Local network connection not available</small>`;
                 return relayConn.uri;
             }
             
@@ -1097,14 +1107,15 @@
                 if (!serverName) {
                     try { serverName = new URL(serverUrl).hostname; } catch { serverName = serverUrl; }
                 }
+                const safeServerName = escapeHtml(serverName);
                 const serverDisplay = isRelay
-                    ? `${serverName} <span style="color: #ff9800;">(via relay)</span>`
-                    : serverName;
+                    ? `${safeServerName} <span style="color: #ff9800;">(via relay)</span>`
+                    : safeServerName;
 
                 // User is authenticated - show auth info
                 try {
                     const userInfo = await getUserInfo(token);
-                    const username = userInfo ? userInfo.title : 'Authenticated User';
+                    const username = escapeHtml(userInfo ? userInfo.title : 'Authenticated User');
 
                     document.getElementById('authButton').style.display = 'none';
                     document.getElementById('authStatus').style.display = 'none';
@@ -1112,8 +1123,8 @@
                     document.getElementById('authInfo').innerHTML = `
                         <div class="info-line"><span class="check-mark">✓</span><span class="label">Signed in as:</span>${username}</div>
                         <div class="info-line"><span class="check-mark">✓</span><span class="label">Server:</span>${serverDisplay}</div>
-                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${playerUrl || 'Not configured'}</div>
-                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${serverUrl}</div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${escapeHtml(playerUrl) || 'Not configured'}</div>
+                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${escapeHtml(serverUrl)}</div>
                         ${isRelay ? '<div style="margin-top: 4px; font-size: 10px; color: #ff9800;">⚠ Using relay connection - local connection not available</div>' : ''}
                     `;
                     document.getElementById('signOutSection').style.display = 'block';
@@ -1127,8 +1138,8 @@
                     document.getElementById('authInfo').innerHTML = `
                         <div class="info-line"><span class="check-mark">✓</span><span class="label">Configured</span></div>
                         <div class="info-line"><span class="check-mark">✓</span><span class="label">Server:</span>${serverDisplay}</div>
-                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${playerUrl || 'Not configured'}</div>
-                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${serverUrl}</div>
+                        <div class="info-line"><span class="check-mark">✓</span><span class="label">Player:</span>${escapeHtml(playerUrl) || 'Not configured'}</div>
+                        <div style="margin-top: 4px; font-size: 10px; color: #666;">Server URL: ${escapeHtml(serverUrl)}</div>
                         ${isRelay ? '<div style="margin-top: 4px; font-size: 10px; color: #ff9800;">⚠ Using relay connection - local connection not available</div>' : ''}
                     `;
                     document.getElementById('signOutSection').style.display = 'block';

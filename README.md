@@ -27,9 +27,9 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.8
+## ⚡ What's New in v2.0.9
 
-- **🔑 1-Click Plex Authorization** — Click **Sign in with Plex**, authorize in your browser, and Ampdeck+ automatically discovers your Plex server and Plexamp player from your Plex account. No more manual token hunting, IP addresses, or port numbers. Works with both owned and shared Plex servers. Manual configuration remains available in Advanced Settings for power users.
+- **🔒 XSS Security Fix** — All user-controlled and API-sourced values written into the Property Inspector UI are now HTML-escaped, closing a DOM-based cross-site scripting vector (CodeQL `js/xss`, CWE-79).
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
