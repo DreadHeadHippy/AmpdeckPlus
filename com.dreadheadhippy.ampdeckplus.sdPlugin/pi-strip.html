@@ -161,8 +161,9 @@
         <select id="ratingMode">
             <option value="half">Half Star (0.5 increment per scroll)</option>
             <option value="full">Full Star (1.0 increment per scroll)</option>
+            <option value="single">Single Star (★ / ☆ toggle)</option>
         </select>
-        <div class="help-text">How much each scroll changes the rating</div>
+        <div class="help-text">How much each scroll changes the rating (single-star mode acts as 1-star increment on dial)</div>
     </div>
 
     <div class="sdpi-item">
@@ -222,10 +223,18 @@
 
     <div class="sdpi-heading">Plexamp Player</div>
 
+    <div class="sdpi-item-checkbox">
+        <input type="checkbox" id="useLocalPlayer">
+        <label for="useLocalPlayer">Use local Plexamp instance</label>
+    </div>
+    <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">
+        Forces the player address to http://localhost:32500, ignoring any auto-discovered remote or phone player.
+    </div>
+
     <div class="sdpi-item">
         <label>Player URL</label>
         <input type="text" id="playerUrl" placeholder="http://localhost:32500">
-        <div class="help-text">Local Plexamp address. Default: http://localhost:32500 (headless). Desktop users may need a different port.</div>
+        <div class="help-text" id="playerUrlHelp">Local Plexamp address. Default: http://localhost:32500 (headless). Desktop users may need a different port.</div>
     </div>
 
     <div class="sdpi-heading">Plex Server</div>
@@ -247,6 +256,7 @@
         <input type="text" id="clientName" placeholder="e.g. My PC">
         <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
     </div>
+
 
     <div class="sdpi-heading">Advanced</div>
 
@@ -288,7 +298,9 @@
             document.getElementById('progressPosition').value = settings.progressPosition || '1';
             document.getElementById('textColor').value = settings.textColor || '#FFFFFF';
             document.getElementById('dynamicColors').checked = settings.dynamicColors !== false;
-            document.getElementById('playerUrl').value = settings.playerUrl || '';
+            const playerUrlEl = document.getElementById('playerUrl');
+            playerUrlEl.dataset.savedUrl = settings.playerUrl || '';
+            playerUrlEl.value = settings.playerUrl || '';
             document.getElementById('plexServerUrl').value = settings.plexServerUrl || '';
             document.getElementById('plexToken').value = settings.plexToken || '';
             document.getElementById('clientName').value = settings.clientName || '';
@@ -296,6 +308,9 @@
             document.getElementById('debugMode').checked = settings.debugMode === true;
             document.getElementById('carouselStyle').value = settings.carouselStyle || 'text';
             document.getElementById('carouselShuffle').checked = settings.carouselShuffle === true;
+            const useLocalInit = settings.useLocalPlayer === true;
+            document.getElementById('useLocalPlayer').checked = useLocalInit;
+            togglePlayerUrlField(useLocalInit);
             
             // Show/hide conditional sections
             updateRatingModeVisibility();
@@ -319,7 +334,7 @@
                 const msg = JSON.parse(evt.data);
                 if (msg.event === 'didReceiveGlobalSettings') {
                     const s = msg.payload.settings || {};
-                    if (s.playerUrl) document.getElementById('playerUrl').value = s.playerUrl;
+                    document.getElementById('playerUrl').dataset.savedUrl = s.playerUrl || '';
                     if (s.plexServerUrl) document.getElementById('plexServerUrl').value = s.plexServerUrl;
                     if (s.plexToken) document.getElementById('plexToken').value = s.plexToken;
                     if (s.clientName) document.getElementById('clientName').value = s.clientName;
@@ -327,8 +342,27 @@
                     if (s.textColor) document.getElementById('textColor').value = s.textColor;
                     if (s.dynamicColors !== undefined) document.getElementById('dynamicColors').checked = s.dynamicColors;
                     if (s.debugMode !== undefined) document.getElementById('debugMode').checked = s.debugMode;
+                    const useLocal = s.useLocalPlayer === true;
+                    document.getElementById('useLocalPlayer').checked = useLocal;
+                    togglePlayerUrlField(useLocal);
                 }
             };
+        }
+
+        function togglePlayerUrlField(useLocal) {
+            const input = document.getElementById('playerUrl');
+            const help = document.getElementById('playerUrlHelp');
+            input.disabled = useLocal;
+            if (useLocal) {
+                if (input.value !== 'http://localhost:32500') {
+                    input.dataset.savedUrl = input.value;
+                }
+                input.value = 'http://localhost:32500';
+                help.textContent = 'Overridden \u2014 using http://localhost:32500';
+            } else {
+                input.value = input.dataset.savedUrl || '';
+                help.textContent = 'Local Plexamp address. Default: http://localhost:32500 (headless). Desktop users may need a different port.';
+            }
         }
 
         function updateRatingModeVisibility() {
@@ -385,7 +419,11 @@
         }
 
         function saveSettings() {
-            const playerUrl = document.getElementById('playerUrl').value.trim();
+            const playerUrlEl = document.getElementById('playerUrl');
+            // When local override is active, persist the pre-override URL so it restores correctly on uncheck
+            const playerUrl = document.getElementById('useLocalPlayer').checked
+                ? (playerUrlEl.dataset.savedUrl || '')
+                : playerUrlEl.value.trim();
             const serverUrl = document.getElementById('plexServerUrl').value.trim();
             
             // Validate URLs
@@ -418,7 +456,8 @@
                 plexToken: document.getElementById('plexToken').value.trim(),
                 clientName: document.getElementById('clientName').value.trim(),
                 syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
-                debugMode: document.getElementById('debugMode').checked
+                debugMode: document.getElementById('debugMode').checked,
+                useLocalPlayer: document.getElementById('useLocalPlayer').checked
             };
 
             if (websocket && websocket.readyState === WebSocket.OPEN) {
@@ -439,7 +478,8 @@
                         syncOffset: settings.syncOffset,
                         textColor: settings.textColor,
                         dynamicColors: settings.dynamicColors,
-                        debugMode: settings.debugMode
+                        debugMode: settings.debugMode,
+                        useLocalPlayer: settings.useLocalPlayer
                     }
                 }));
             }
@@ -469,6 +509,10 @@
         document.getElementById('textColor').addEventListener('change', saveSettings);
         document.getElementById('dynamicColors').addEventListener('change', saveSettings);
         document.getElementById('playerUrl').addEventListener('change', saveSettings);
+        document.getElementById('useLocalPlayer').addEventListener('change', function() {
+            togglePlayerUrlField(this.checked);
+            saveSettings();
+        });
         document.getElementById('plexServerUrl').addEventListener('change', saveSettings);
         document.getElementById('plexToken').addEventListener('change', saveSettings);
         document.getElementById('clientName').addEventListener('change', saveSettings);

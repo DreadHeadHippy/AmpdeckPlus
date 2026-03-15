@@ -69,9 +69,12 @@ class PlexConnection {
     }
 
     /**
-     * Execute command on local player (with server fallback)
+     * Execute command on local player (with server fallback for non-playMedia commands)
+     * @param {string} path
+     * @param {object|null} extraParams
+     * @param {number} timeoutMs - timeout for the player request (default 1000)
      */
-    async playerCommand(path, extraParams = null) {
+    async playerCommand(path, extraParams = null, timeoutMs = 1000) {
         // Prevent commands when not configured (signed out)
         if (!this.isConfigured()) {
             logger.debug('Player command blocked: not configured');
@@ -92,9 +95,8 @@ class PlexConnection {
 
         logger.debug(`Player command: ${path}`);
 
-        // Create AbortController with 1 second timeout to prevent hanging connections
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
             const response = await fetch(url, {
@@ -112,6 +114,12 @@ class PlexConnection {
             return response;
         } catch (error) {
             clearTimeout(timeoutId);
+            // playMedia must reach the local player directly — server fallback doesn't
+            // work when idle (no connected client machineId available). Throw clearly.
+            if (path.includes('playMedia')) {
+                logger.error(`playMedia command failed: ${error.message}`);
+                throw error;
+            }
             logger.warn(`Player command failed (${path}): ${error.message}, falling back to server`);
             return this.serverCommand(path, extraParams);
         }
@@ -179,6 +187,26 @@ class PlexConnection {
      */
     getClientId() {
         return state.currentTrack?.Player?.machineIdentifier || null;
+    }
+
+    /**
+     * Check whether the local Plexamp player is reachable at all.
+     * Returns true if Plexamp responds with ANY HTTP reply (even if nothing is playing).
+     * Returns false only on a network error (connection refused / timeout = not running).
+     * This is distinct from fetchTimeline(), which returns null both when Plexamp is
+     * unreachable AND when it is running but idle (no music Timeline in the XML).
+     */
+    async isPlexampReachable() {
+        const url = `${this.playerUrl}/player/timeline/poll?wait=0&commandID=0`;
+        try {
+            await fetch(url, {
+                headers: this.createHeaders(false),
+                signal: AbortSignal.timeout(2000)
+            });
+            return true; // any HTTP response → Plexamp is up
+        } catch {
+            return false; // network error → not running
+        }
     }
 
     /**

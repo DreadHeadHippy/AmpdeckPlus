@@ -282,6 +282,18 @@ export function renderRating(context) {
     const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
     if (state.currentTrack) {
+        if (ratingMode === 'single') {
+            // Single-star mode: "RATING" label at top, large centered star below
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 26px sans-serif';
+            ctx.fillStyle = textColor;
+            ctx.fillText('RATING', 72, 32);
+
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = state.currentRating > 0 ? accentColor : textColor;
+            ctx.font = 'bold 90px sans-serif';
+            ctx.fillText(formatRating(state.currentRating, 'single'), 72, 90);
+        } else {
         // Display "RATING" label at top
         ctx.textAlign = "center";
         ctx.font = "bold 26px sans-serif";
@@ -321,6 +333,7 @@ export function renderRating(context) {
                 ctx.fillText(numericRating + "/5", 72, 90);
             }
         }
+        } // end non-single block
     } else {
         ctx.fillStyle = COLORS.DARK_GRAY;
         ctx.textAlign = "center";

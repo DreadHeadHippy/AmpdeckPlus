@@ -4,7 +4,7 @@
  * Modular architecture with automatic reconnection
  */
 
-import { VERSION, ACTIONS, TIMING, LOG_LEVELS, RATING, VOLUME } from './core/constants.js';
+import { VERSION, ACTIONS, TIMING, LOG_LEVELS, RATING, VOLUME, PLEX } from './core/constants.js';
 import ConnectionManager from './core/connectionManager.js';
 import state from './core/stateManager.js';
 import logger from './utils/logger.js';
@@ -164,7 +164,11 @@ function onDidReceiveGlobalSettings(data) {
     if (settings.plexToken && settings.plexServerUrl) {
         startPolling(); // restarts workers if they were stopped (e.g. after sign-out)
 
-        // Load playlists for any carousel strips that appeared before the connection was ready
+        // Re-render all displays so the correct textColor/dynamicColors are
+        // applied immediately rather than waiting for the next render tick.
+        // Without this, stale per-action settings from willAppear can persist
+        // until the next render cycle after global settings arrive.
+        updateAllDisplays();
         state.getAllContexts().forEach(context => {
             const actionData = state.getAction(context);
             if (!actionData) return;
@@ -210,7 +214,9 @@ function onDidReceiveSettings(data) {
 function onKeyDown(data) {
     const { context, action } = data;
 
-    if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+    if (state.playbackState === 'stopped') {
+        return;
+    }
 
     // Track button hold for seek functionality
     state.buttonHoldState[context] = {
@@ -351,12 +357,12 @@ function onDialRotate(data) {
     const ticks = payload.ticks || 0;
     
     if (!action || action !== ACTIONS.STRIP) return;
-    if (state.playbackState === 'stopped') return; // Plexamp not running — ignore all dial input
 
     const dialAction = settings.dialAction || 'none';
 
     // Playlist carousel mode: dial rotation navigates the list
     if (settings.displayMode === 'playlists') {
+        if (state.playbackState === 'stopped') return; // Plexamp not running
         const carousel = state.getCarouselState(context);
         if (!carousel || carousel.playlists.length === 0) return;
         const total = carousel.playlists.length;
@@ -365,6 +371,8 @@ function onDialRotate(data) {
         layoutManager.renderStripLayout(context);
         return;
     }
+
+    if (state.playbackState === 'stopped') return; // Plexamp not running — ignore volume/skip/rating dial input
 
     // Handle dial rotation based on user's configured action
     if (dialAction === 'skip') {
@@ -388,6 +396,7 @@ function onDialRotate(data) {
         }
         
         const ratingMode = settings.ratingMode || 'half';
+        // Single-star mode on dial acts like full-star increments (dial is continuous, toggle doesn't fit)
         const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
         const newRating = Math.max(0, Math.min(10, state.currentRating + (ticks * step)));
         
@@ -399,8 +408,9 @@ function onDialRotate(data) {
             state.setUserRating(state.currentTrack.ratingKey, newRating);
         }
         
-        // Show overlay with stars
-        const stars = formatRating(newRating, ratingMode);
+        // Show overlay — for single-star mode show actual stars since dial is continuous
+        const overlayMode = ratingMode === 'single' ? 'full' : ratingMode;
+        const stars = formatRating(newRating, overlayMode);
         layoutManager.showStripOverlay(context, 'RATING', stars);
         
         // Debounce: save rating after 2 seconds of inactivity
@@ -426,12 +436,13 @@ function onDialDown(data) {
     const settings = state.getActionSettings(context) || {};
 
     if (settings.displayMode === 'playlists') {
-        if (state.playbackState === 'stopped') return; // Plexamp not running
         // Record press; onDialUp will fire the play action
+        if (state.playbackState === 'stopped') return; // Plexamp not running
         state.dialHoldState[context] = { pressTime: Date.now() };
         return;
     }
 
+    if (state.playbackState === 'stopped') return; // togglePlayPause needs Plexamp running
     playbackController.togglePlayPause();
 }
 
@@ -446,9 +457,7 @@ function onDialUp(data) {
     if (settings.displayMode === 'playlists') {
         delete state.dialHoldState[context];
 
-        if (state.playbackState === 'stopped') return; // Plexamp not running
-
-        // Press: play the currently highlighted playlist
+        // Press: play the currently highlighted playlist (launch Plexamp first if not running)
         const carousel = state.getCarouselState(context);
         if (!carousel || carousel.playlists.length === 0) return;
 
@@ -477,7 +486,7 @@ function onTouchTap(data) {
 // ============================================
 
 async function handleButtonAction(action, context) {
-    if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+    if (state.playbackState === 'stopped') return; // Plexamp not running
 
     switch (action) {
         case ACTIONS.ALBUM_ART:
@@ -515,12 +524,16 @@ async function handleButtonAction(action, context) {
             // Read rating mode from settings
             const settings = state.getActionSettings(context) || {};
             const ratingMode = settings.ratingMode || 'half';
-            const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
             
-            // Calculate new rating with wrap-around at max
-            let newRating = state.currentRating + step;
-            if (newRating > RATING.MAX) {
-                newRating = 0; // Wrap to 0
+            // Calculate new rating
+            let newRating;
+            if (ratingMode === 'single') {
+                // Single-star toggle: flip between 1 star (value 2) and unrated (0)
+                newRating = state.currentRating > 0 ? 0 : RATING.FULL_STAR;
+            } else {
+                const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
+                newRating = state.currentRating + step;
+                if (newRating > RATING.MAX) newRating = 0; // Wrap to 0
             }
             
             // Update rating locally immediately
@@ -629,7 +642,11 @@ function updateLogLevel() {
 function configurePlexConnection() {
     const serverUrl = state.getGlobalSetting('plexServerUrl');
     const token = state.getGlobalSetting('plexToken');
-    const playerUrl = state.getGlobalSetting('playerUrl');
+    const useLocalPlayer = state.getGlobalSetting('useLocalPlayer', false);
+    // When the checkbox is on, always force localhost regardless of auto-discovered URL.
+    const playerUrl = useLocalPlayer
+        ? PLEX.DEFAULT_PLAYER_URL
+        : state.getGlobalSetting('playerUrl');
     
     logger.debug('Configuring Plex connection', {
         hasServer: !!serverUrl,

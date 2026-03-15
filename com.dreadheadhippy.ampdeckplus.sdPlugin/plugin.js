@@ -634,10 +634,13 @@
     /**
      * Format rating (0-10) as star characters
      * @param {number} rating - Rating value from 0-10 (where 2 = 1 star, 10 = 5 stars)
-     * @param {string} mode - 'half' for half-star increments, 'full' for full stars only
-     * @returns {string} Star characters (★ = full, ⯨ = half, ☆ = empty)
+     * @param {string} mode - 'half' for half-star increments, 'full' for full stars only, 'single' for single-star toggle
+     * @returns {string} Star characters (★ = full, ⯨ = half, ☆ = empty) or ★/☆ for single mode
      */
     function formatRating(rating, mode) {
+        if (mode === 'single') {
+            return rating > 0 ? '★' : '☆';
+        }
         if (rating === 0) return "☆☆☆☆☆";
         
         const fullStars = Math.floor(rating / 2);
@@ -720,9 +723,12 @@
         }
 
         /**
-         * Execute command on local player (with server fallback)
+         * Execute command on local player (with server fallback for non-playMedia commands)
+         * @param {string} path
+         * @param {object|null} extraParams
+         * @param {number} timeoutMs - timeout for the player request (default 1000)
          */
-        async playerCommand(path, extraParams = null) {
+        async playerCommand(path, extraParams = null, timeoutMs = 1000) {
             // Prevent commands when not configured (signed out)
             if (!this.isConfigured()) {
                 logger.debug('Player command blocked: not configured');
@@ -743,9 +749,8 @@
 
             logger.debug(`Player command: ${path}`);
 
-            // Create AbortController with 1 second timeout to prevent hanging connections
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1000);
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
             try {
                 const response = await fetch(url, {
@@ -763,6 +768,12 @@
                 return response;
             } catch (error) {
                 clearTimeout(timeoutId);
+                // playMedia must reach the local player directly — server fallback doesn't
+                // work when idle (no connected client machineId available). Throw clearly.
+                if (path.includes('playMedia')) {
+                    logger.error(`playMedia command failed: ${error.message}`);
+                    throw error;
+                }
                 logger.warn(`Player command failed (${path}): ${error.message}, falling back to server`);
                 return this.serverCommand(path, extraParams);
             }
@@ -830,6 +841,26 @@
          */
         getClientId() {
             return state.currentTrack?.Player?.machineIdentifier || null;
+        }
+
+        /**
+         * Check whether the local Plexamp player is reachable at all.
+         * Returns true if Plexamp responds with ANY HTTP reply (even if nothing is playing).
+         * Returns false only on a network error (connection refused / timeout = not running).
+         * This is distinct from fetchTimeline(), which returns null both when Plexamp is
+         * unreachable AND when it is running but idle (no music Timeline in the XML).
+         */
+        async isPlexampReachable() {
+            const url = `${this.playerUrl}/player/timeline/poll?wait=0&commandID=0`;
+            try {
+                await fetch(url, {
+                    headers: this.createHeaders(false),
+                    signal: AbortSignal.timeout(2000)
+                });
+                return true; // any HTTP response → Plexamp is up
+            } catch {
+                return false; // network error → not running
+            }
         }
 
         /**
@@ -1426,16 +1457,20 @@
                 const serverUrl = new URL(plexConnection.serverUrl);
                 const address = serverUrl.hostname;
                 const port = serverUrl.port || '32400';
+                const protocol = serverUrl.protocol.replace(':', '') || 'http';
 
-                // Step 2: instruct the player to play the queue
+                // Step 2: instruct the player to play the queue.
+                // Use a 10-second timeout — playMedia requires Plexamp to fetch the queue
+                // from the server before responding, which takes longer than simple commands.
                 await plexConnection.playerCommand('/player/playback/playMedia', {
                     key: `/playlists/${ratingKey}/items`,
                     containerKey: `/playQueues/${playQueueID}`,
                     machineIdentifier: serverMachineId,
                     address,
                     port,
+                    protocol,
                     token: plexConnection.token
-                });
+                }, 10000);
 
                 logger.info(`Playing playlist ${ratingKey} via queue ${playQueueID}`);
             } catch (error) {
@@ -1934,6 +1969,18 @@
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
         if (state.currentTrack) {
+            if (ratingMode === 'single') {
+                // Single-star mode: "RATING" label at top, large centered star below
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 26px sans-serif';
+                ctx.fillStyle = textColor;
+                ctx.fillText('RATING', 72, 32);
+
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = state.currentRating > 0 ? accentColor : textColor;
+                ctx.font = 'bold 90px sans-serif';
+                ctx.fillText(formatRating(state.currentRating, 'single'), 72, 90);
+            } else {
             // Display "RATING" label at top
             ctx.textAlign = "center";
             ctx.font = "bold 26px sans-serif";
@@ -1973,6 +2020,7 @@
                     ctx.fillText(numericRating + "/5", 72, 90);
                 }
             }
+            } // end non-single block
         } else {
             ctx.fillStyle = COLORS.DARK_GRAY;
             ctx.textAlign = "center";
@@ -2608,7 +2656,7 @@
         const totalPanels = parseInt(settings.progressTotalPanels) || 3;
         const position = parseInt(settings.progressPosition) || 1;
 
-        const textColor = settings.textColor || getTextColor();
+        const textColor = getTextColor();
         const accentColor = getAccentColor();
         const stripSecondary = getSecondaryColor(textColor);
         const isDimmed = state.playbackState === 'stopped';
@@ -3401,7 +3449,11 @@
         if (settings.plexToken && settings.plexServerUrl) {
             startPolling(); // restarts workers if they were stopped (e.g. after sign-out)
 
-            // Load playlists for any carousel strips that appeared before the connection was ready
+            // Re-render all displays so the correct textColor/dynamicColors are
+            // applied immediately rather than waiting for the next render tick.
+            // Without this, stale per-action settings from willAppear can persist
+            // until the next render cycle after global settings arrive.
+            updateAllDisplays();
             state.getAllContexts().forEach(context => {
                 const actionData = state.getAction(context);
                 if (!actionData) return;
@@ -3447,7 +3499,9 @@
     function onKeyDown(data) {
         const { context, action } = data;
 
-        if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+        if (state.playbackState === 'stopped') {
+            return;
+        }
 
         // Track button hold for seek functionality
         state.buttonHoldState[context] = {
@@ -3588,12 +3642,12 @@
         const ticks = payload.ticks || 0;
         
         if (!action || action !== ACTIONS.STRIP) return;
-        if (state.playbackState === 'stopped') return; // Plexamp not running — ignore all dial input
 
         const dialAction = settings.dialAction || 'none';
 
         // Playlist carousel mode: dial rotation navigates the list
         if (settings.displayMode === 'playlists') {
+            if (state.playbackState === 'stopped') return; // Plexamp not running
             const carousel = state.getCarouselState(context);
             if (!carousel || carousel.playlists.length === 0) return;
             const total = carousel.playlists.length;
@@ -3602,6 +3656,8 @@
             layoutManager.renderStripLayout(context);
             return;
         }
+
+        if (state.playbackState === 'stopped') return; // Plexamp not running — ignore volume/skip/rating dial input
 
         // Handle dial rotation based on user's configured action
         if (dialAction === 'skip') {
@@ -3625,6 +3681,7 @@
             }
             
             const ratingMode = settings.ratingMode || 'half';
+            // Single-star mode on dial acts like full-star increments (dial is continuous, toggle doesn't fit)
             const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
             const newRating = Math.max(0, Math.min(10, state.currentRating + (ticks * step)));
             
@@ -3636,8 +3693,9 @@
                 state.setUserRating(state.currentTrack.ratingKey, newRating);
             }
             
-            // Show overlay with stars
-            const stars = formatRating(newRating, ratingMode);
+            // Show overlay — for single-star mode show actual stars since dial is continuous
+            const overlayMode = ratingMode === 'single' ? 'full' : ratingMode;
+            const stars = formatRating(newRating, overlayMode);
             layoutManager.showStripOverlay(context, 'RATING', stars);
             
             // Debounce: save rating after 2 seconds of inactivity
@@ -3663,12 +3721,13 @@
         const settings = state.getActionSettings(context) || {};
 
         if (settings.displayMode === 'playlists') {
-            if (state.playbackState === 'stopped') return; // Plexamp not running
             // Record press; onDialUp will fire the play action
+            if (state.playbackState === 'stopped') return; // Plexamp not running
             state.dialHoldState[context] = { pressTime: Date.now() };
             return;
         }
 
+        if (state.playbackState === 'stopped') return; // togglePlayPause needs Plexamp running
         playbackController.togglePlayPause();
     }
 
@@ -3683,9 +3742,7 @@
         if (settings.displayMode === 'playlists') {
             delete state.dialHoldState[context];
 
-            if (state.playbackState === 'stopped') return; // Plexamp not running
-
-            // Press: play the currently highlighted playlist
+            // Press: play the currently highlighted playlist (launch Plexamp first if not running)
             const carousel = state.getCarouselState(context);
             if (!carousel || carousel.playlists.length === 0) return;
 
@@ -3714,7 +3771,7 @@
     // ============================================
 
     async function handleButtonAction(action, context) {
-        if (state.playbackState === 'stopped') return; // Not configured or Plexamp not running
+        if (state.playbackState === 'stopped') return; // Plexamp not running
 
         switch (action) {
             case ACTIONS.ALBUM_ART:
@@ -3752,12 +3809,16 @@
                 // Read rating mode from settings
                 const settings = state.getActionSettings(context) || {};
                 const ratingMode = settings.ratingMode || 'half';
-                const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
                 
-                // Calculate new rating with wrap-around at max
-                let newRating = state.currentRating + step;
-                if (newRating > RATING.MAX) {
-                    newRating = 0; // Wrap to 0
+                // Calculate new rating
+                let newRating;
+                if (ratingMode === 'single') {
+                    // Single-star toggle: flip between 1 star (value 2) and unrated (0)
+                    newRating = state.currentRating > 0 ? 0 : RATING.FULL_STAR;
+                } else {
+                    const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
+                    newRating = state.currentRating + step;
+                    if (newRating > RATING.MAX) newRating = 0; // Wrap to 0
                 }
                 
                 // Update rating locally immediately
@@ -3866,7 +3927,11 @@
     function configurePlexConnection() {
         const serverUrl = state.getGlobalSetting('plexServerUrl');
         const token = state.getGlobalSetting('plexToken');
-        const playerUrl = state.getGlobalSetting('playerUrl');
+        const useLocalPlayer = state.getGlobalSetting('useLocalPlayer', false);
+        // When the checkbox is on, always force localhost regardless of auto-discovered URL.
+        const playerUrl = useLocalPlayer
+            ? PLEX.DEFAULT_PLAYER_URL
+            : state.getGlobalSetting('playerUrl');
         
         logger.debug('Configuring Plex connection', {
             hasServer: !!serverUrl,

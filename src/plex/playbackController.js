@@ -259,16 +259,20 @@ class PlaybackController {
             const serverUrl = new URL(plexConnection.serverUrl);
             const address = serverUrl.hostname;
             const port = serverUrl.port || '32400';
+            const protocol = serverUrl.protocol.replace(':', '') || 'http';
 
-            // Step 2: instruct the player to play the queue
+            // Step 2: instruct the player to play the queue.
+            // Use a 10-second timeout — playMedia requires Plexamp to fetch the queue
+            // from the server before responding, which takes longer than simple commands.
             await plexConnection.playerCommand('/player/playback/playMedia', {
                 key: `/playlists/${ratingKey}/items`,
                 containerKey: `/playQueues/${playQueueID}`,
                 machineIdentifier: serverMachineId,
                 address,
                 port,
+                protocol,
                 token: plexConnection.token
-            });
+            }, 10000);
 
             logger.info(`Playing playlist ${ratingKey} via queue ${playQueueID}`);
         } catch (error) {

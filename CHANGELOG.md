@@ -4,6 +4,20 @@
 
 ---
 
+## [2.0.10] - 2026-03-14
+
+### ✨ New Features
+- **"Use Local Plexamp Instance" checkbox** — A new checkbox in the Property Inspector (above the player URL field) lets you instantly lock the player address to `http://localhost:32500`. When checked, the URL field is overridden and locked, ensuring Ampdeck+ always connects to the local Plexamp desktop app rather than accidentally binding to a phone or remote player. Unchecking restores your previously saved custom URL.
+- **Single-star rating mode** — New rating option on the Rating button that toggles between rated (1 star) and unrated with a single tap.
+
+### 🐛 Bug Fixes
+- **"Use Local Plexamp Instance" checkbox stuck on localhost when unchecked** — When the checkbox was checked, `saveSettings()` was persisting `http://localhost:32500` as the saved player URL, so reopening the Property Inspector had no original URL to restore to. The real URL is now saved from `dataset.savedUrl` while the override is active.
+- **Text color not applying on first render** — `renderStripLayout` was reading `settings.textColor` from stale per-action `willAppear` data before falling back to the global `getTextColor()`. This caused the strip to render with a leftover per-action color until the next full render cycle. The renderer now always calls `getTextColor()` directly, sourcing the color exclusively from global settings.
+- **Colors not refreshed after global settings arrive** — `onDidReceiveGlobalSettings` now calls `updateAllDisplays()` immediately after starting the poll workers, so the correct `textColor` and `dynamicColors` are applied the moment global settings land rather than waiting for the next render tick. Prevents a brief flash of stale colors on session start.
+- **Text color picker showing wrong color in Property Inspector** — The `textColor` input was falling back to `#E5A00D` (amber) regardless of the user's saved preference, causing the color picker to display amber instead of the user's chosen color when reopening the Property Inspector. The fallback is now `#FFFFFF` (white) and only applies on a genuine fresh install with no saved settings.
+
+---
+
 ## [2.0.9] - 2026-03-12
 
 ### 🔒 Security

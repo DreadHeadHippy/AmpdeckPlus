@@ -181,6 +181,8 @@
     <div id="authSection">
         <div class="sdpi-heading">Plex Setup</div>
         
+        <div class="help-text" style="margin-bottom: 8px;">Make sure <strong>Plexamp is running</strong> before signing in — it needs to be open for the plugin to detect your local player.</div>
+
         <button id="authButton">Sign in with Plex</button>
         
         <div id="authStatus"></div>
@@ -320,18 +322,27 @@
             <select id="ratingMode">
                 <option value="half">Half Stars (0.5 increment)</option>
                 <option value="full">Full Stars (1.0 increment)</option>
+                <option value="single">Single Star (★ / ☆ toggle)</option>
             </select>
-            <div class="help-text">Tap to cycle by half or full stars</div>
+            <div class="help-text">Tap to cycle by half/full stars, or one press to set/clear a single star</div>
         </div>
     </div>
 
     <!-- Advanced Settings (Manual Configuration) -->
     <div class="sdpi-heading collapse-toggle" id="advancedToggle">Advanced Settings</div>
     <div class="collapsible-content" id="advancedContent">
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="useLocalPlayer">
+            <label for="useLocalPlayer">Use local Plexamp instance</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">
+            Forces the player address to http://localhost:32500, ignoring any auto-discovered remote or phone player.
+        </div>
+
         <div class="sdpi-item">
             <label>Player URL</label>
             <input type="text" id="playerUrl" placeholder="http://localhost:32500">
-            <div class="help-text">Override auto-discovered Plexamp player URL</div>
+            <div class="help-text" id="playerUrlHelp">Override auto-discovered Plexamp player URL</div>
         </div>
 
         <div class="sdpi-item">
@@ -352,6 +363,7 @@
             <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
         </div>
         <input type="hidden" id="plexServerName">
+
     </div>
 
     <div class="sdpi-heading">Testing & Debug</div>
@@ -390,6 +402,22 @@
         let authPollInterval = null;
         let authPinId = null;
         let authCompleting = false; // module-level guard against concurrent completions
+
+        function togglePlayerUrlField(useLocal) {
+            const input = document.getElementById('playerUrl');
+            const help = document.getElementById('playerUrlHelp');
+            input.disabled = useLocal;
+            if (useLocal) {
+                if (input.value !== 'http://localhost:32500') {
+                    input.dataset.savedUrl = input.value;
+                }
+                input.value = 'http://localhost:32500';
+                help.textContent = 'Overridden — using http://localhost:32500';
+            } else {
+                input.value = input.dataset.savedUrl || '';
+                help.textContent = 'Override auto-discovered Plexamp player URL';
+            }
+        }
 
         async function startPlexAuth() {
             if (authPinId || authCompleting) return; // already in progress
@@ -527,7 +555,7 @@
                     await finishAuthWithServer(servers[0], authToken, username);
                 } else {
                     // Show server selection UI
-                    authStatusEl.innerHTML = `✓ Authorized! Found ${servers.length} servers.`;
+                    authStatusEl.innerHTML = `✓ Authorized! Found ${servers.length} servers — select yours below and click Continue.`;
                     document.getElementById('serverSelection').style.display = 'block';
                     
                     const serverSelect = document.getElementById('serverSelect');
@@ -610,7 +638,14 @@
                     }
 
                     if (best) {
-                        playerUrl = best.conn.uri;
+                        let rawUri = best.conn.uri;
+                        // Decode local plex.direct hostnames to a direct http://IP:PORT URL
+                        // (same treatment as the server URL — avoids TLS/DNS failures from the PI webview)
+                        if (best.conn.local && rawUri.includes('.plex.direct')) {
+                            const decoded = decodePlexDirectToLocal(rawUri);
+                            if (decoded) rawUri = decoded;
+                        }
+                        playerUrl = rawUri;
                         playerName = best.player.name;
                     }
                 }
@@ -1036,7 +1071,12 @@
             
             document.getElementById('textColor').value = settings.textColor || '#FFFFFF';
             document.getElementById('dynamicColors').checked = settings.dynamicColors !== false;
-            document.getElementById('playerUrl').value = settings.playerUrl || '';
+            const useLocalInit = settings.useLocalPlayer === true;
+            document.getElementById('useLocalPlayer').checked = useLocalInit;
+            const playerUrlEl = document.getElementById('playerUrl');
+            playerUrlEl.dataset.savedUrl = settings.playerUrl || '';
+            playerUrlEl.value = settings.playerUrl || '';
+            togglePlayerUrlField(useLocalInit);
             document.getElementById('plexServerUrl').value = settings.plexServerUrl || '';
             document.getElementById('plexToken').value = settings.plexToken || '';
             document.getElementById('clientName').value = settings.clientName || '';
@@ -1069,15 +1109,18 @@
                     });
                     
                     // Always update fields even if empty (important for sign out!)
-                    document.getElementById('playerUrl').value = s.playerUrl || '';
+                    document.getElementById('playerUrl').dataset.savedUrl = s.playerUrl || '';
                     document.getElementById('plexServerUrl').value = s.plexServerUrl || '';
                     document.getElementById('plexToken').value = s.plexToken || '';
                     document.getElementById('clientName').value = s.clientName || '';
                     document.getElementById('plexServerName').value = s.plexServerName || '';
                     document.getElementById('syncOffset').value = s.syncOffset !== undefined ? s.syncOffset : 0;
-                    document.getElementById('textColor').value = s.textColor || '#E5A00D';
+                    document.getElementById('textColor').value = s.textColor || '#FFFFFF';
                     if (s.dynamicColors !== undefined) document.getElementById('dynamicColors').checked = s.dynamicColors;
                     if (s.debugMode !== undefined) document.getElementById('debugMode').checked = s.debugMode;
+                    const useLocal = s.useLocalPlayer === true;
+                    document.getElementById('useLocalPlayer').checked = useLocal;
+                    togglePlayerUrlField(useLocal);
 
                     // Check if already authenticated
                     checkAuthState(s);
@@ -1177,7 +1220,11 @@
         }
 
         function saveSettings() {
-            const playerUrl = document.getElementById('playerUrl').value.trim();
+            const playerUrlEl = document.getElementById('playerUrl');
+            // When local override is active, persist the pre-override URL so it restores correctly on uncheck
+            const playerUrl = document.getElementById('useLocalPlayer').checked
+                ? (playerUrlEl.dataset.savedUrl || '')
+                : playerUrlEl.value.trim();
             const serverUrl = document.getElementById('plexServerUrl').value.trim();
             
             // Validate URLs
@@ -1196,6 +1243,7 @@
             const settings = {
                 textColor: document.getElementById('textColor').value,
                 dynamicColors: document.getElementById('dynamicColors').checked,
+                useLocalPlayer: document.getElementById('useLocalPlayer').checked,
                 playerUrl: playerUrl,
                 plexServerUrl: serverUrl,
                 plexToken: document.getElementById('plexToken').value.trim(),
@@ -1260,6 +1308,10 @@
 
         document.getElementById('textColor').addEventListener('change', saveSettings);
         document.getElementById('dynamicColors').addEventListener('change', saveSettings);
+        document.getElementById('useLocalPlayer').addEventListener('change', function() {
+            togglePlayerUrlField(this.checked);
+            saveSettings();
+        });
         document.getElementById('playerUrl').addEventListener('change', saveSettings);
         document.getElementById('plexServerUrl').addEventListener('change', saveSettings);
         document.getElementById('plexToken').addEventListener('change', saveSettings);
@@ -1381,10 +1433,15 @@
             statusEl.className = 'show info';
             statusEl.textContent = 'Testing player connection...';
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
             try {
                 const response = await fetch(playerUrl + '/player/timeline/poll?wait=0&commandID=1', {
-                    headers: { 'X-Plex-Client-Identifier': 'com.dreadheadhippy.ampdeckplus' }
+                    headers: { 'X-Plex-Client-Identifier': 'com.dreadheadhippy.ampdeckplus' },
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
                 if (!response.ok) throw new Error('HTTP ' + response.status);
 
@@ -1409,8 +1466,13 @@
 
                 saveSettings();
             } catch (e) {
+                clearTimeout(timeoutId);
                 statusEl.className = 'show error';
-                statusEl.textContent = '✗ Player connection failed: ' + e.message + '\nMake sure Plexamp is running and the URL/port is correct.';
+                if (e.name === 'AbortError') {
+                    statusEl.textContent = '✗ Player connection timed out. Make sure Plexamp is open and try again. If the URL looks wrong, re-run setup or manually enter http://localhost:32500 (or 32433).';
+                } else {
+                    statusEl.textContent = '✗ Player connection failed: ' + e.message + '\nMake sure Plexamp is running. If the URL above contains ".plex.direct", re-run setup so it can be auto-corrected to a direct address.';
+                }
             }
         });
 

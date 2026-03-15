@@ -56,7 +56,7 @@ export function renderStripLayout(context) {
     const totalPanels = parseInt(settings.progressTotalPanels) || 3;
     const position = parseInt(settings.progressPosition) || 1;
 
-    const textColor = settings.textColor || getTextColor();
+    const textColor = getTextColor();
     const accentColor = getAccentColor();
     const stripSecondary = getSecondaryColor(textColor);
     const isDimmed = state.playbackState === 'stopped';

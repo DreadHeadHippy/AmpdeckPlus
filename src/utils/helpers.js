@@ -87,10 +87,13 @@ export function debounce(func, delay) {
 /**
  * Format rating (0-10) as star characters
  * @param {number} rating - Rating value from 0-10 (where 2 = 1 star, 10 = 5 stars)
- * @param {string} mode - 'half' for half-star increments, 'full' for full stars only
- * @returns {string} Star characters (★ = full, ⯨ = half, ☆ = empty)
+ * @param {string} mode - 'half' for half-star increments, 'full' for full stars only, 'single' for single-star toggle
+ * @returns {string} Star characters (★ = full, ⯨ = half, ☆ = empty) or ★/☆ for single mode
  */
 export function formatRating(rating, mode) {
+    if (mode === 'single') {
+        return rating > 0 ? '★' : '☆';
+    }
     if (rating === 0) return "☆☆☆☆☆";
     
     const fullStars = Math.floor(rating / 2);

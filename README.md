@@ -27,9 +27,14 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.9
+## ⚡ What's New in v2.0.10
 
-- **🔒 XSS Security Fix** — All user-controlled and API-sourced values written into the Property Inspector UI are now HTML-escaped, closing a DOM-based cross-site scripting vector (CodeQL `js/xss`, CWE-79).
+- **✨ "Use Local Plexamp Instance" checkbox** — New checkbox in the Property Inspector above the player URL. When checked, the player address is automatically locked to `http://localhost:32500`, preventing Ampdeck+ from accidentally binding to a phone or remote player when Plexamp is running locally.
+- **✨ Single-star rating mode** — New rating option on the Rating button that toggles between rated (1 star) and unrated with a single tap.
+- **🐛 "Use Local Plexamp Instance" checkbox stuck on localhost when unchecked** — Unchecking the checkbox now correctly restores the previously saved player URL.
+- **🐛 Text color not applying on first render** — Strip layout renderer now always reads text color from global settings instead of stale per-action `willAppear` data.
+- **🐛 Colors not refreshed after global settings arrive** — `updateAllDisplays()` is now called immediately when global settings land, eliminating a brief flash of stale colors on session start.
+- **🐛 Text color picker showing wrong color in Property Inspector** — Color picker now correctly reflects the user's saved color choice instead of incorrectly falling back to amber (`#E5A00D`).
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
