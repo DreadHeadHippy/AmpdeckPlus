@@ -4,6 +4,16 @@
 
 ---
 
+## [2.0.11] - 2026-03-18
+
+### 🐛 Bug Fixes
+- **Single-star rating now matches Plexamp's 3-state behaviour** — The Rating button in single-star mode previously toggled between unrated and the "disliked" state (rating 2), meaning every rated track appeared with the crossed-out star in Plexamp. The button now cycles through all three states in the correct order: unrated (empty ☆) → liked (filled ★, rating 10) → disliked (filled ★ with diagonal strikethrough, rating 2) → unrated.
+
+### 🎨 Visual Polish
+- **Diagonal strikethrough on disliked single-star state** — The disliked state on the Rating button now draws a diagonal "/" line across the star in the accent color, clearly distinguishing it from the liked state at a glance.
+
+---
+
 ## [2.0.10] - 2026-03-14
 
 ### ✨ New Features

@@ -4,7 +4,7 @@
  */
 
 // Version
-export const VERSION = '2.0.7';
+export const VERSION = '2.0.11';
 
 // Action identifiers
 export const ACTIONS = {
@@ -57,7 +57,9 @@ export const RATING = {
     HALF_STAR: 1,
     FULL_STAR: 2,
     MIN: 0,
-    MAX: 10
+    MAX: 10,
+    SINGLE_LIKED: 10,    // Plexamp "liked" state — filled star (highest rating)
+    SINGLE_DISLIKED: 2   // Plexamp "disliked" state — filled star with line through (lowest positive rating)
 };
 
 // Colors

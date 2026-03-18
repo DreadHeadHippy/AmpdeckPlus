@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.7';
+    const VERSION = '2.0.11';
 
     // Action identifiers
     const ACTIONS = {
@@ -57,7 +57,9 @@
     const RATING = {
         HALF_STAR: 1,
         FULL_STAR: 2,
-        MAX: 10
+        MAX: 10,
+        SINGLE_LIKED: 10,    // Plexamp "liked" state — filled star (highest rating)
+        SINGLE_DISLIKED: 2   // Plexamp "disliked" state — filled star with line through (lowest positive rating)
     };
 
     // Colors
@@ -1971,15 +1973,35 @@
         if (state.currentTrack) {
             if (ratingMode === 'single') {
                 // Single-star mode: "RATING" label at top, large centered star below
+                // 3 states matching Plexamp: empty ☆ (unrated) → ★ (liked=10) → ★̶ (disliked=2)
                 ctx.textAlign = 'center';
                 ctx.font = 'bold 26px sans-serif';
                 ctx.fillStyle = textColor;
                 ctx.fillText('RATING', 72, 32);
 
                 ctx.textBaseline = 'middle';
-                ctx.fillStyle = state.currentRating > 0 ? accentColor : textColor;
                 ctx.font = 'bold 90px sans-serif';
-                ctx.fillText(formatRating(state.currentRating, 'single'), 72, 90);
+
+                if (state.currentRating === RATING.SINGLE_LIKED) {
+                    // Liked: full ★ in accent color
+                    ctx.fillStyle = accentColor;
+                    ctx.fillText('★', 72, 90);
+                } else if (state.currentRating === RATING.SINGLE_DISLIKED) {
+                    // Disliked: full ★ with diagonal "/" strikethrough in accent color
+                    ctx.fillStyle = accentColor;
+                    ctx.fillText('★', 72, 90);
+                    ctx.strokeStyle = accentColor;
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(38, 128);
+                    ctx.lineTo(108, 48);
+                    ctx.stroke();
+                } else {
+                    // Unrated: empty ☆ in text color
+                    ctx.fillStyle = textColor;
+                    ctx.fillText('☆', 72, 90);
+                }
             } else {
             // Display "RATING" label at top
             ctx.textAlign = "center";
@@ -3813,8 +3835,14 @@
                 // Calculate new rating
                 let newRating;
                 if (ratingMode === 'single') {
-                    // Single-star toggle: flip between 1 star (value 2) and unrated (0)
-                    newRating = state.currentRating > 0 ? 0 : RATING.FULL_STAR;
+                    // 3-state cycle matching Plexamp single-star: unrated → liked → disliked → unrated
+                    if (state.currentRating === 0) {
+                        newRating = RATING.SINGLE_LIKED;       // empty star → filled star (liked)
+                    } else if (state.currentRating === RATING.SINGLE_LIKED) {
+                        newRating = RATING.SINGLE_DISLIKED;    // filled star → crossed star (disliked)
+                    } else {
+                        newRating = 0;                         // crossed star (or any other) → empty star
+                    }
                 } else {
                     const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
                     newRating = state.currentRating + step;

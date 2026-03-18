@@ -528,8 +528,14 @@ async function handleButtonAction(action, context) {
             // Calculate new rating
             let newRating;
             if (ratingMode === 'single') {
-                // Single-star toggle: flip between 1 star (value 2) and unrated (0)
-                newRating = state.currentRating > 0 ? 0 : RATING.FULL_STAR;
+                // 3-state cycle matching Plexamp single-star: unrated → liked → disliked → unrated
+                if (state.currentRating === 0) {
+                    newRating = RATING.SINGLE_LIKED;       // empty star → filled star (liked)
+                } else if (state.currentRating === RATING.SINGLE_LIKED) {
+                    newRating = RATING.SINGLE_DISLIKED;    // filled star → crossed star (disliked)
+                } else {
+                    newRating = 0;                         // crossed star (or any other) → empty star
+                }
             } else {
                 const step = ratingMode === 'half' ? RATING.HALF_STAR : RATING.FULL_STAR;
                 newRating = state.currentRating + step;

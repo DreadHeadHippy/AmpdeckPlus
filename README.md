@@ -27,14 +27,10 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.10
+## ⚡ What's New in v2.0.11
 
-- **✨ "Use Local Plexamp Instance" checkbox** — New checkbox in the Property Inspector above the player URL. When checked, the player address is automatically locked to `http://localhost:32500`, preventing Ampdeck+ from accidentally binding to a phone or remote player when Plexamp is running locally.
-- **✨ Single-star rating mode** — New rating option on the Rating button that toggles between rated (1 star) and unrated with a single tap.
-- **🐛 "Use Local Plexamp Instance" checkbox stuck on localhost when unchecked** — Unchecking the checkbox now correctly restores the previously saved player URL.
-- **🐛 Text color not applying on first render** — Strip layout renderer now always reads text color from global settings instead of stale per-action `willAppear` data.
-- **🐛 Colors not refreshed after global settings arrive** — `updateAllDisplays()` is now called immediately when global settings land, eliminating a brief flash of stale colors on session start.
-- **🐛 Text color picker showing wrong color in Property Inspector** — Color picker now correctly reflects the user's saved color choice instead of incorrectly falling back to amber (`#E5A00D`).
+- **🐛 Single-star rating cycles through all 3 Plexamp states** — The Rating button in single-star mode now correctly mirrors Plexamp: tap once for liked (filled ★), tap again for disliked (★ with diagonal strikethrough), tap once more to clear. Previously every rated track was sent as "disliked".
+- **🎨 Disliked star gets a diagonal strikethrough** — The disliked state on the Rating button draws a vivid diagonal "/" line across the star in the accent color, making it instantly distinguishable from liked at a glance.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -48,7 +44,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability.
 - **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
 - **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
-- **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star or half star). Wraps from 5 stars back to 0 for quick clearing.
+- **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star, half star, or single-star). In **single-star mode**, tapping cycles through all three Plexamp states: unrated (☆) → liked (★) → disliked (★ with diagonal strikethrough) → unrated. Wraps from 5 stars back to 0 for quick clearing in multi-star modes.
 - **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
 - **Volume Up / Down** — Dedicated buttons with a canvas-drawn speaker icon. The icon fills with the album art accent color from the bottom proportional to current volume. Hold **Volume Down** for 400ms to mute; hold again to restore.

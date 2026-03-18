@@ -3,7 +3,7 @@
  * Canvas-based rendering for Stream Deck buttons
  */
 
-import { CANVAS, COLORS } from '../core/constants.js';
+import { CANVAS, COLORS, RATING } from '../core/constants.js';
 import { formatTime, formatRating } from '../utils/helpers.js';
 import state from '../core/stateManager.js';
 
@@ -284,15 +284,35 @@ export function renderRating(context) {
     if (state.currentTrack) {
         if (ratingMode === 'single') {
             // Single-star mode: "RATING" label at top, large centered star below
+            // 3 states matching Plexamp: empty ☆ (unrated) → ★ (liked=10) → ★̶ (disliked=2)
             ctx.textAlign = 'center';
             ctx.font = 'bold 26px sans-serif';
             ctx.fillStyle = textColor;
             ctx.fillText('RATING', 72, 32);
 
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = state.currentRating > 0 ? accentColor : textColor;
             ctx.font = 'bold 90px sans-serif';
-            ctx.fillText(formatRating(state.currentRating, 'single'), 72, 90);
+
+            if (state.currentRating === RATING.SINGLE_LIKED) {
+                // Liked: full ★ in accent color
+                ctx.fillStyle = accentColor;
+                ctx.fillText('★', 72, 90);
+            } else if (state.currentRating === RATING.SINGLE_DISLIKED) {
+                // Disliked: full ★ with diagonal "/" strikethrough in accent color
+                ctx.fillStyle = accentColor;
+                ctx.fillText('★', 72, 90);
+                ctx.strokeStyle = accentColor;
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(38, 128);
+                ctx.lineTo(108, 48);
+                ctx.stroke();
+            } else {
+                // Unrated: empty ☆ in text color
+                ctx.fillStyle = textColor;
+                ctx.fillText('☆', 72, 90);
+            }
         } else {
         // Display "RATING" label at top
         ctx.textAlign = "center";
