@@ -400,6 +400,45 @@ class PlexConnection {
         }
     }
     /**
+     * Fetch play queue position data.
+     * Returns { position (1-based), total } or null.
+     */
+    async fetchPlayQueue(containerKey) {
+        if (!this.serverUrl || !this.token) {
+            return null;
+        }
+
+        const url = `${this.serverUrl}${containerKey}`;
+
+        try {
+            const response = await fetch(url, {
+                headers: this.createHeaders(true)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const container = doc.querySelector('MediaContainer');
+
+            if (!container) return null;
+
+            const offset = parseInt(container.getAttribute('playQueueSelectedItemOffset')) || 0;
+            const total = parseInt(container.getAttribute('playQueueTotalCount')) || 0;
+
+            if (!total) return null;
+
+            return { position: offset + 1, total };
+        } catch (error) {
+            logger.error(`Failed to fetch play queue: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
      * Get (and cache) the Plex server's own machineIdentifier.
      * Fetched from the server root endpoint the first time it is needed.
      */

@@ -137,14 +137,27 @@ export function renderInfo(context) {
         const media = state.currentTrack.Media?.[0];
         const format = media?.audioCodec ? media.audioCodec.toUpperCase() : '---';
         const bitrate = media?.bitrate ? `${Math.round(media.bitrate)} kbps` : '';
-        const trackNum = state.currentTrack.index || '?';
-        const totalTracks = state.albumTrackCount || '?';
+        const isInQueue = state.queuePosition !== null && state.queueTotal !== null;
+        const trackNum = isInQueue ? state.queuePosition : (state.currentTrack.index || '?');
+        const totalTracks = isInQueue ? state.queueTotal : (state.albumTrackCount || '?');
+        const trackStr = `${trackNum}/${totalTracks}`;
 
         // Symmetrical spacing: format, bitrate, label, track number
         const formatSize = 36;
         const bitrateSize = 26;
         const labelSize = 24;
-        const trackSize = 42;
+        const maxTrackSize = 42;
+        const minTrackSize = 16;
+        const maxWidth = CANVAS.BUTTON_SIZE - 14; // 7px padding each side
+
+        // Auto-shrink track number font to fit the button width
+        let trackSize = maxTrackSize;
+        ctx.font = `bold ${trackSize}px sans-serif`;
+        while (ctx.measureText(trackStr).width > maxWidth && trackSize > minTrackSize) {
+            trackSize--;
+            ctx.font = `bold ${trackSize}px sans-serif`;
+        }
+
         const totalContent = formatSize + bitrateSize + labelSize + trackSize;
         const gap = (CANVAS.BUTTON_SIZE - totalContent) / 5;
         
@@ -166,10 +179,10 @@ export function renderInfo(context) {
         ctx.fillStyle = textColor;
         ctx.fillText('TRACK', 72, gap + formatSize + gap + bitrateSize + gap + labelSize / 2);
 
-        // Track number (e.g., 3/12)
+        // Track number (e.g., 3/12 or 1234/10000)
         ctx.font = `bold ${trackSize}px sans-serif`;
         ctx.fillStyle = accentColor;
-        ctx.fillText(`${trackNum}/${totalTracks}`, 72, gap + formatSize + gap + bitrateSize + gap + labelSize + gap + trackSize / 2);
+        ctx.fillText(trackStr, 72, gap + formatSize + gap + bitrateSize + gap + labelSize + gap + trackSize / 2);
     } else {
         ctx.fillStyle = COLORS.DARK_GRAY;
         ctx.textAlign = 'center';

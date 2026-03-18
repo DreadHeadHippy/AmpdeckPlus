@@ -91,6 +91,16 @@ class MetadataCache {
                 state.albumTrackCount = count;
             }
 
+            // Load queue position if playing from a playQueue (playlist)
+            if (timelineData.containerKey?.startsWith('/playQueues/')) {
+                const queueInfo = await plexConnection.fetchPlayQueue(timelineData.containerKey);
+                state.queuePosition = queueInfo?.position ?? null;
+                state.queueTotal = queueInfo?.total ?? null;
+            } else {
+                state.queuePosition = null;
+                state.queueTotal = null;
+            }
+
             // Load album art if changed
             const artPath = metadata.thumb || metadata.parentThumb || metadata.grandparentThumb;
             if (artPath && artPath !== state.lastArtPath) {

@@ -35,6 +35,10 @@ class StateManager {
         this.lastParentRatingKey = null;
         this.lastTimelineRatingKey = null;
 
+        // Queue position (from playQueue when playing a playlist)
+        this.queuePosition = null;   // 1-based position in queue
+        this.queueTotal = null;      // total tracks in queue
+
         // Player state
         this.currentVolume = 50;
         this.currentShuffle = 0;
@@ -135,6 +139,8 @@ class StateManager {
         this.lastParentRatingKey = null;
         this.lastTimelineRatingKey = null;
         this.lastArtPath = null;
+        this.queuePosition = null;
+        this.queueTotal = null;
         this.currentAlbumArt = null;
         this.dominantColor = "#E5A00D";
         this.currentRating = 0;

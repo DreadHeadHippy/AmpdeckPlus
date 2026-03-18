@@ -379,6 +379,10 @@
             this.lastParentRatingKey = null;
             this.lastTimelineRatingKey = null;
 
+            // Queue position (from playQueue when playing a playlist)
+            this.queuePosition = null;   // 1-based position in queue
+            this.queueTotal = null;      // total tracks in queue
+
             // Player state
             this.currentVolume = 50;
             this.currentShuffle = 0;
@@ -479,6 +483,8 @@
             this.lastParentRatingKey = null;
             this.lastTimelineRatingKey = null;
             this.lastArtPath = null;
+            this.queuePosition = null;
+            this.queueTotal = null;
             this.currentAlbumArt = null;
             this.dominantColor = "#E5A00D";
             this.currentRating = 0;
@@ -1056,6 +1062,45 @@
             }
         }
         /**
+         * Fetch play queue position data.
+         * Returns { position (1-based), total } or null.
+         */
+        async fetchPlayQueue(containerKey) {
+            if (!this.serverUrl || !this.token) {
+                return null;
+            }
+
+            const url = `${this.serverUrl}${containerKey}`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: this.createHeaders(true)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const container = doc.querySelector('MediaContainer');
+
+                if (!container) return null;
+
+                const offset = parseInt(container.getAttribute('playQueueSelectedItemOffset')) || 0;
+                const total = parseInt(container.getAttribute('playQueueTotalCount')) || 0;
+
+                if (!total) return null;
+
+                return { position: offset + 1, total };
+            } catch (error) {
+                logger.error(`Failed to fetch play queue: ${error.message}`);
+                return null;
+            }
+        }
+
+        /**
          * Get (and cache) the Plex server's own machineIdentifier.
          * Fetched from the server root endpoint the first time it is needed.
          */
@@ -1574,6 +1619,16 @@
                     state.albumTrackCount = count;
                 }
 
+                // Load queue position if playing from a playQueue (playlist)
+                if (timelineData.containerKey?.startsWith('/playQueues/')) {
+                    const queueInfo = await plexConnection.fetchPlayQueue(timelineData.containerKey);
+                    state.queuePosition = queueInfo?.position ?? null;
+                    state.queueTotal = queueInfo?.total ?? null;
+                } else {
+                    state.queuePosition = null;
+                    state.queueTotal = null;
+                }
+
                 // Load album art if changed
                 const artPath = metadata.thumb || metadata.parentThumb || metadata.grandparentThumb;
                 if (artPath && artPath !== state.lastArtPath) {
@@ -1826,14 +1881,27 @@
             const media = state.currentTrack.Media?.[0];
             const format = media?.audioCodec ? media.audioCodec.toUpperCase() : '---';
             const bitrate = media?.bitrate ? `${Math.round(media.bitrate)} kbps` : '';
-            const trackNum = state.currentTrack.index || '?';
-            const totalTracks = state.albumTrackCount || '?';
+            const isInQueue = state.queuePosition !== null && state.queueTotal !== null;
+            const trackNum = isInQueue ? state.queuePosition : (state.currentTrack.index || '?');
+            const totalTracks = isInQueue ? state.queueTotal : (state.albumTrackCount || '?');
+            const trackStr = `${trackNum}/${totalTracks}`;
 
             // Symmetrical spacing: format, bitrate, label, track number
             const formatSize = 36;
             const bitrateSize = 26;
             const labelSize = 24;
-            const trackSize = 42;
+            const maxTrackSize = 42;
+            const minTrackSize = 16;
+            const maxWidth = CANVAS.BUTTON_SIZE - 14; // 7px padding each side
+
+            // Auto-shrink track number font to fit the button width
+            let trackSize = maxTrackSize;
+            ctx.font = `bold ${trackSize}px sans-serif`;
+            while (ctx.measureText(trackStr).width > maxWidth && trackSize > minTrackSize) {
+                trackSize--;
+                ctx.font = `bold ${trackSize}px sans-serif`;
+            }
+
             const totalContent = formatSize + bitrateSize + labelSize + trackSize;
             const gap = (CANVAS.BUTTON_SIZE - totalContent) / 5;
             
@@ -1855,10 +1923,10 @@
             ctx.fillStyle = textColor;
             ctx.fillText('TRACK', 72, gap + formatSize + gap + bitrateSize + gap + labelSize / 2);
 
-            // Track number (e.g., 3/12)
+            // Track number (e.g., 3/12 or 1234/10000)
             ctx.font = `bold ${trackSize}px sans-serif`;
             ctx.fillStyle = accentColor;
-            ctx.fillText(`${trackNum}/${totalTracks}`, 72, gap + formatSize + gap + bitrateSize + gap + labelSize + gap + trackSize / 2);
+            ctx.fillText(trackStr, 72, gap + formatSize + gap + bitrateSize + gap + labelSize + gap + trackSize / 2);
         } else {
             ctx.fillStyle = COLORS.DARK_GRAY;
             ctx.textAlign = 'center';

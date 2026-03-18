@@ -29,6 +29,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ## ⚡ What's New in v2.0.11
 
+- **✨ Track Info shows playlist position** — When playing from a playlist, the Track Info button now displays the track's position within the playlist (e.g. `3/24`) instead of the album position (e.g. `4/16`). Falls back to album position when not playing a playlist.
 - **🐛 Single-star rating cycles through all 3 Plexamp states** — The Rating button in single-star mode now correctly mirrors Plexamp: tap once for liked (filled ★), tap again for disliked (★ with diagonal strikethrough), tap once more to clear. Previously every rated track was sent as "disliked".
 - **🎨 Disliked star gets a diagonal strikethrough** — The disliked state on the Rating button draws a vivid diagonal "/" line across the star in the accent color, making it instantly distinguishable from liked at a glance.
 
@@ -53,7 +54,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Paused State Visual Feedback** — When playback is paused, all buttons turn gray automatically: Album Art overlay, Navigation buttons, and all other action tiles provide clear visual indication.
 - **Shuffle** — Toggle shuffle on/off with visual state indicator. Dims when paused.
 - **Repeat** — Cycle through repeat modes: Off → All → One. Dims when paused.
-- **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing.
+- **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing. When playing a playlist the track counter reflects position within the playlist; when playing an album it shows the album track position. Font auto-shrinks on large playlists so numbers always fit.
 - **Time Elapsed** — Large elapsed/total time display (42px/40px fonts) with its own progress bar and symmetrical spacing. **Tap to toggle** between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp.
 - **Dynamic Colors** — Progress bar and accent colors adapt to the current album art, or lock to orange if you prefer. Canvas-rendered navigation buttons use dynamic accent colors when active.
 - **Configurable Text Colors** — Choose from White, Light Gray, Orange, Amber, or Black to match your setup.
