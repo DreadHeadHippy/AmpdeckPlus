@@ -13,7 +13,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 </p>
 
 <p align="center">
-  <img src="assets/streamdeck-overview.png" alt="Ampdeck+ on Stream Deck+" width="700">
+  <video src="assets/streamdeck-overview.mp4" width="700" autoplay muted loop playsinline></video>
 </p>
 
 ---
