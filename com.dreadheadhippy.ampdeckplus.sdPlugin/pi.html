@@ -328,6 +328,20 @@
         </div>
     </div>
 
+    <div id="volumeDownSettings" style="display: none;">
+        <div class="sdpi-heading">Volume Down Button Settings</div>
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="fadeOut">
+            <label for="fadeOut">Fade Out on hold-to-mute</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When checked, holding the button fades the volume to 0 gradually instead of muting instantly. Volume is restored when you hold again to unmute.</div>
+        <div class="sdpi-item" id="fadeDurationRow" style="display: none;">
+            <label>Fade Duration (seconds)</label>
+            <input type="number" id="fadeDuration" placeholder="3" min="1" max="30" step="1">
+            <div class="help-text">How long the fade takes from 100 to 0, in seconds (1–30). Default: 3</div>
+        </div>
+    </div>
+
     <!-- Advanced Settings (Manual Configuration) -->
     <div class="sdpi-heading collapse-toggle" id="advancedToggle">Advanced Settings</div>
     <div class="collapsible-content" id="advancedContent">
@@ -1037,8 +1051,8 @@
                 document.getElementById('playlistShuffle').checked = settings.playlistShuffle === true;
             }
 
-            // Show navigation settings for next/previous buttons
-            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.next' || actionUUID === 'com.dreadheadhippy.ampdeckplus.previous') {
+            // Show navigation settings for next/previous/album-skip buttons
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.next' || actionUUID === 'com.dreadheadhippy.ampdeckplus.previous' || actionUUID === 'com.dreadheadhippy.ampdeckplus.skip-album' || actionUUID === 'com.dreadheadhippy.ampdeckplus.prev-album') {
                 document.getElementById('navigationSettings').style.display = 'block';
                 document.getElementById('navigationIconSize').value = settings.navigationIconSize || '60';
             }
@@ -1067,6 +1081,15 @@
                 document.getElementById('ratingDisplay').value = settings.ratingDisplay || 'stars';
                 document.getElementById('ratingFontSize').value = settings.ratingFontSize || '48';
                 document.getElementById('ratingMode').value = settings.ratingMode || 'half';
+            }
+
+            // Show volume down settings
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.volume-down') {
+                document.getElementById('volumeDownSettings').style.display = 'block';
+                document.getElementById('fadeOut').checked = settings.fadeOut === true;
+                const storedDuration = settings.fadeDuration != null ? settings.fadeDuration : 3;
+                document.getElementById('fadeDuration').value = storedDuration;
+                document.getElementById('fadeDurationRow').style.display = settings.fadeOut === true ? 'block' : 'none';
             }
             
             document.getElementById('textColor').value = settings.textColor || '#FFFFFF';
@@ -1254,7 +1277,7 @@
             };
             
             // Add rating-specific settings if rating button
-            if (actionInfo && (actionInfo.action === 'com.dreadheadhippy.ampdeckplus.next' || actionInfo.action === 'com.dreadheadhippy.ampdeckplus.previous')) {
+            if (actionInfo && (actionInfo.action === 'com.dreadheadhippy.ampdeckplus.next' || actionInfo.action === 'com.dreadheadhippy.ampdeckplus.previous' || actionInfo.action === 'com.dreadheadhippy.ampdeckplus.skip-album' || actionInfo.action === 'com.dreadheadhippy.ampdeckplus.prev-album')) {
                 settings.navigationIconSize = document.getElementById('navigationIconSize').value;
             }
 
@@ -1283,6 +1306,12 @@
                 // Save raw title only (not "Title (N tracks)" display text)
                 settings.playlistName = selOpt?.dataset.title || selOpt?.text || '';
                 settings.playlistShuffle = document.getElementById('playlistShuffle').checked;
+            }
+
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.volume-down') {
+                settings.fadeOut = document.getElementById('fadeOut').checked;
+                const durVal = parseFloat(document.getElementById('fadeDuration').value);
+                settings.fadeDuration = isNaN(durVal) || durVal < 1 ? 3 : Math.min(durVal, 30);
             }
 
             if (websocket && websocket.readyState === WebSocket.OPEN) {
@@ -1327,6 +1356,11 @@
         document.getElementById('debugMode').addEventListener('change', saveSettings);
         document.getElementById('playlistSelect').addEventListener('change', saveSettings);
         document.getElementById('playlistShuffle').addEventListener('change', saveSettings);
+        document.getElementById('fadeOut').addEventListener('change', function () {
+            document.getElementById('fadeDurationRow').style.display = this.checked ? 'block' : 'none';
+            saveSettings();
+        });
+        document.getElementById('fadeDuration').addEventListener('change', saveSettings);
 
         // Load Playlists from Plex server
         async function loadPlaylists(serverUrl, token, silent) {
@@ -1534,5 +1568,13 @@
             }
         });
     </script>
+
+    <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #3a3a3a; text-align: center;">
+        <a href="#" onclick="if(websocket && websocket.readyState === WebSocket.OPEN) { websocket.send(JSON.stringify({ event: 'openUrl', payload: { url: 'https://ko-fi.com/dreadheadhippy' } })); } return false;"
+           style="display: inline-block; color: #9B9B9B; font-size: 11px; text-decoration: none; opacity: 0.6; transition: opacity 0.2s;"
+           onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+            ☕ Enjoying Ampdeck+? Support development on Ko-fi
+        </a>
+    </div>
 </body>
 </html>

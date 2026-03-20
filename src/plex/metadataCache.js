@@ -23,10 +23,13 @@ class MetadataCache {
             Date.now()
         );
         state.trackDuration = timelineData.duration || 0;
-        // Only accept volume from timeline if no recent local command (avoids race condition
-        // and also fixes 0 || 50 falsy bug by using nullish coalescing)
+        // Only accept volume from timeline if:
+        //   1. No recent local setVolume command (avoids race condition), AND
+        //   2. We are not in a muted/faded state — while muted the timeline will
+        //      eventually report the pre-mute volume from Plexamp, which would
+        //      visually reset the volume-button fill to the old level.
         const timeSinceVolumeCommand = Date.now() - state.lastVolumeCommandTime;
-        if (timeSinceVolumeCommand > 2000) {
+        if (timeSinceVolumeCommand > 2000 && state.muteRestoreVolume === null) {
             state.currentVolume = timelineData.volume ?? 50;
         }
         state.currentShuffle = timelineData.shuffle || 0;
@@ -47,6 +50,9 @@ class MetadataCache {
         if (!timelineData.ratingKey) {
             return;
         }
+
+        // Store containerKey so skip-album can locate the current playQueue
+        state.currentContainerKey = timelineData.containerKey || null;
 
         try {
             const metadata = await plexConnection.fetchMetadata(timelineData.ratingKey);
@@ -96,9 +102,11 @@ class MetadataCache {
                 const queueInfo = await plexConnection.fetchPlayQueue(timelineData.containerKey);
                 state.queuePosition = queueInfo?.position ?? null;
                 state.queueTotal = queueInfo?.total ?? null;
+                state.playQueueIsPlaylist = queueInfo?.isPlaylistQueue ?? false;
             } else {
                 state.queuePosition = null;
                 state.queueTotal = null;
+                state.playQueueIsPlaylist = false;
             }
 
             // Load album art if changed

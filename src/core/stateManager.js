@@ -38,6 +38,8 @@ class StateManager {
         // Queue position (from playQueue when playing a playlist)
         this.queuePosition = null;   // 1-based position in queue
         this.queueTotal = null;      // total tracks in queue
+        this.playQueueIsPlaylist = false; // true when queue spans multiple albums (playlist), false for album queues
+        this.currentContainerKey = null; // containerKey of current playQueue (e.g. '/playQueues/123')
 
         // Player state
         this.currentVolume = 50;
@@ -67,6 +69,8 @@ class StateManager {
         // Pending operations
         this.ratingSaveTimer = null;
         this.pendingRatingContext = null;
+        this.activeFadeTimer = null;     // generation number while fade is running, or null
+        this.activeFadeContext = null;   // context string of the button driving the fade
 
         // Playlist carousel state (per dial context)
         this.carouselState = {};     // context -> { playlists: [], index: 0 }
@@ -141,6 +145,8 @@ class StateManager {
         this.lastArtPath = null;
         this.queuePosition = null;
         this.queueTotal = null;
+        this.playQueueIsPlaylist = false;
+        this.currentContainerKey = null;
         this.currentAlbumArt = null;
         this.dominantColor = "#E5A00D";
         this.currentRating = 0;

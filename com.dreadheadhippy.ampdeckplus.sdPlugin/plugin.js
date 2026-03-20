@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.11';
+    const VERSION = '2.0.12';
 
     // Action identifiers
     const ACTIONS = {
@@ -25,7 +25,10 @@
         STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
         VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
         VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down',
-        PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist'
+        PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist',
+        TRACK_TITLE: 'com.dreadheadhippy.ampdeckplus.track-title',
+        SKIP_ALBUM: 'com.dreadheadhippy.ampdeckplus.skip-album',
+        PREV_ALBUM: 'com.dreadheadhippy.ampdeckplus.prev-album'
     };
 
     // Timing constants
@@ -50,7 +53,9 @@
     const VOLUME = {
         STEP: 5,                       // Volume change per step
         MIN: 0,
-        MAX: 100
+        MAX: 100,
+        FADE_DURATION: 3000,           // Total fade-out duration in ms (100 → 0)
+        FADE_INTERVAL: 150             // Target ms per tick; actual gap = max(0, interval - Plex latency)
     };
 
     // Rating
@@ -382,6 +387,8 @@
             // Queue position (from playQueue when playing a playlist)
             this.queuePosition = null;   // 1-based position in queue
             this.queueTotal = null;      // total tracks in queue
+            this.playQueueIsPlaylist = false; // true when queue spans multiple albums (playlist), false for album queues
+            this.currentContainerKey = null; // containerKey of current playQueue (e.g. '/playQueues/123')
 
             // Player state
             this.currentVolume = 50;
@@ -411,6 +418,8 @@
             // Pending operations
             this.ratingSaveTimer = null;
             this.pendingRatingContext = null;
+            this.activeFadeTimer = null;     // generation number while fade is running, or null
+            this.activeFadeContext = null;   // context string of the button driving the fade
 
             // Playlist carousel state (per dial context)
             this.carouselState = {};     // context -> { playlists: [], index: 0 }
@@ -485,6 +494,8 @@
             this.lastArtPath = null;
             this.queuePosition = null;
             this.queueTotal = null;
+            this.playQueueIsPlaylist = false;
+            this.currentContainerKey = null;
             this.currentAlbumArt = null;
             this.dominantColor = "#E5A00D";
             this.currentRating = 0;
@@ -1062,6 +1073,30 @@
             }
         }
         /**
+         * PUT to the server-side playQueue to toggle shuffle (or repeat).
+         * Plexamp shuffles albums by reordering the actual queue on the server rather than
+         * just flipping a local flag, so setParameters alone is insufficient. This call
+         * makes the server reorder the queue and push a notification to Plexamp.
+         */
+        async updatePlayQueueShuffle(containerKey, shuffle) {
+            if (!this.serverUrl || !this.token) return;
+
+            const url = `${this.serverUrl}${containerKey}?shuffle=${shuffle}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: this.createHeaders(true)
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                logger.debug(`PlayQueue shuffle set to ${shuffle}`);
+            } catch (error) {
+                logger.error(`Failed to update playQueue shuffle: ${error.message}`);
+            }
+        }
+
+        /**
          * Fetch play queue position data.
          * Returns { position (1-based), total } or null.
          */
@@ -1070,7 +1105,10 @@
                 return null;
             }
 
-            const url = `${this.serverUrl}${containerKey}`;
+            // window=10000 ensures we see the full queue for parentRatingKey diversity detection.
+            // Without it, the windowed response (~50 items around current position) can return
+            // only same-album tracks even in a playlist, causing false album-queue detection.
+            const url = `${this.serverUrl}${containerKey}?window=10000`;
 
             try {
                 const response = await fetch(url, {
@@ -1090,10 +1128,22 @@
 
                 const offset = parseInt(container.getAttribute('playQueueSelectedItemOffset')) || 0;
                 const total = parseInt(container.getAttribute('playQueueTotalCount')) || 0;
+                const sourceURI = container.getAttribute('playQueueSourceURI') || '';
 
                 if (!total) return null;
 
-                return { position: offset + 1, total };
+                // Detect playlist queue by checking parentRatingKey diversity across all tracks.
+                // Album queues have one unique parentRatingKey; playlist queues span multiple albums.
+                // sourceURI is a secondary signal for single-album playlists (rare edge case).
+                const tracks = doc.querySelectorAll('Track');
+                const albumKeys = new Set();
+                tracks.forEach(t => {
+                    const pk = t.getAttribute('parentRatingKey');
+                    if (pk) albumKeys.add(pk);
+                });
+                const isPlaylistQueue = albumKeys.size > 1 || sourceURI.toLowerCase().includes('playlist');
+
+                return { position: offset + 1, total, isPlaylistQueue };
             } catch (error) {
                 logger.error(`Failed to fetch play queue: ${error.message}`);
                 return null;
@@ -1186,6 +1236,43 @@
             } catch (error) {
                 logger.error(`Failed to fetch playlists: ${error.message}`);
                 throw error;
+            }
+        }
+
+        /**
+         * Fetch all items from an existing playQueue and identify the selected item.
+         * Returns { selectedItemID, items: [{playQueueItemID, parentRatingKey, key}] }
+         * Used by skipToNextAlbum to locate the first track of the next album.
+         */
+        async fetchPlayQueueItems(containerKey) {
+            if (!this.serverUrl || !this.token) return null;
+
+            // window=10000 ensures we receive the full queue rather than only the
+            // default windowed page (~50 items centred on the current track), which
+            // would cause large albums to hide the next album's tracks from view.
+            const url = `${this.serverUrl}${containerKey}?window=10000`;
+
+            try {
+                const response = await fetch(url, { headers: this.createHeaders(true) });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const container = doc.querySelector('MediaContainer');
+                if (!container) return null;
+
+                const selectedItemID = container.getAttribute('playQueueSelectedItemID');
+                const items = Array.from(doc.querySelectorAll('Track')).map(track => ({
+                    playQueueItemID: track.getAttribute('playQueueItemID'),
+                    parentRatingKey: track.getAttribute('parentRatingKey'),
+                    key: track.getAttribute('key')
+                }));
+
+                return { selectedItemID, items };
+            } catch (error) {
+                logger.error(`Failed to fetch play queue items: ${error.message}`);
+                return null;
             }
         }
 
@@ -1404,18 +1491,26 @@
          */
         async toggleShuffle() {
             const newShuffle = state.currentShuffle ? 0 : 1;
-            
+
+            // setParameters tells the local player to flip its shuffle flag (works for playlists
+            // and other clients). For album queues Plexamp ignores this and instead expects the
+            // server-side playQueue to be reordered via a PUT — which triggers a server notification
+            // that makes Plexamp reload the queue in the new order. We do both.
             try {
                 await plexConnection.playerCommand(
                     '/player/playback/setParameters',
                     `shuffle=${newShuffle}`
                 );
-                
-                state.currentShuffle = newShuffle;
-                logger.debug(`Shuffle ${newShuffle ? 'enabled' : 'disabled'}`);
             } catch (error) {
-                logger.error(`Failed to toggle shuffle: ${error.message}`);
+                logger.warn(`setParameters shuffle failed: ${error.message}`);
             }
+
+            if (state.currentContainerKey) {
+                await plexConnection.updatePlayQueueShuffle(state.currentContainerKey, newShuffle);
+            }
+
+            state.currentShuffle = newShuffle;
+            logger.debug(`Shuffle ${newShuffle ? 'enabled' : 'disabled'}`);
         }
 
         /**
@@ -1480,6 +1575,97 @@
             );
             
             await this.setRating(newRating);
+        }
+
+        /**
+         * Skip to the first track of the next album in the current playQueue.
+         * Works when playing any playlist or album queue; silently no-ops if already
+         * on the last album or not playing from a playQueue.
+         */
+        async skipToNextAlbum() {
+            const containerKey = state.currentContainerKey;
+
+            if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+                logger.warn('Skip album: not playing from a play queue');
+                return;
+            }
+
+            try {
+                const queue = await plexConnection.fetchPlayQueueItems(containerKey);
+                if (!queue || !queue.items.length) return;
+
+                const { selectedItemID, items } = queue;
+
+                const currentIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+                if (currentIdx === -1) return;
+
+                // Derive the current album from the queue snapshot — not from state.currentTrack,
+                // which may be stale (async metadata fetch). This ensures both the queue position
+                // and the album key come from the same consistent response.
+                const currentAlbumKey = items[currentIdx].parentRatingKey;
+                if (!currentAlbumKey) return;
+
+                const nextItem = items.slice(currentIdx + 1).find(i => i.parentRatingKey !== currentAlbumKey);
+                if (!nextItem) {
+                    logger.debug('Skip album: already on the last album in queue');
+                    return;
+                }
+
+                await plexConnection.playerCommand(
+                    '/player/playback/skipTo',
+                    { key: nextItem.key, playQueueItemID: nextItem.playQueueItemID }
+                );
+                logger.info(`Skipped to next album (playQueueItemID: ${nextItem.playQueueItemID})`);
+            } catch (error) {
+                logger.error(`Failed to skip to next album: ${error.message}`);
+            }
+        }
+
+        /**
+         * Skip to the first track of the previous album in the current playQueue.
+         * Walks backward from the current position to find the first track of the
+         * album before the current one. No-ops if already on the first album.
+         */
+        async skipToPrevAlbum() {
+            const containerKey = state.currentContainerKey;
+
+            if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+                logger.warn('Prev album: not playing from a play queue');
+                return;
+            }
+
+            try {
+                const queue = await plexConnection.fetchPlayQueueItems(containerKey);
+                if (!queue || !queue.items.length) return;
+
+                const { selectedItemID, items } = queue;
+
+                const currentIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+                if (currentIdx === -1) return;
+
+                // Derive the current album from the queue snapshot (same reasoning as skipToNextAlbum).
+                const currentAlbumKey = items[currentIdx].parentRatingKey;
+                if (!currentAlbumKey) return;
+
+                // Walk backward to find an item belonging to a different (earlier) album,
+                // then jump to the very first track of that album.
+                const prevItem = items.slice(0, currentIdx).reverse().find(i => i.parentRatingKey !== currentAlbumKey);
+                if (!prevItem) {
+                    logger.debug('Prev album: already on the first album in queue');
+                    return;
+                }
+
+                const firstTrack = items.find(i => i.parentRatingKey === prevItem.parentRatingKey);
+                if (!firstTrack) return;
+
+                await plexConnection.playerCommand(
+                    '/player/playback/skipTo',
+                    { key: firstTrack.key, playQueueItemID: firstTrack.playQueueItemID }
+                );
+                logger.info(`Skipped to previous album (playQueueItemID: ${firstTrack.playQueueItemID})`);
+            } catch (error) {
+                logger.error(`Failed to skip to previous album: ${error.message}`);
+            }
         }
 
         /**
@@ -1551,10 +1737,13 @@
                 Date.now()
             );
             state.trackDuration = timelineData.duration || 0;
-            // Only accept volume from timeline if no recent local command (avoids race condition
-            // and also fixes 0 || 50 falsy bug by using nullish coalescing)
+            // Only accept volume from timeline if:
+            //   1. No recent local setVolume command (avoids race condition), AND
+            //   2. We are not in a muted/faded state — while muted the timeline will
+            //      eventually report the pre-mute volume from Plexamp, which would
+            //      visually reset the volume-button fill to the old level.
             const timeSinceVolumeCommand = Date.now() - state.lastVolumeCommandTime;
-            if (timeSinceVolumeCommand > 2000) {
+            if (timeSinceVolumeCommand > 2000 && state.muteRestoreVolume === null) {
                 state.currentVolume = timelineData.volume ?? 50;
             }
             state.currentShuffle = timelineData.shuffle || 0;
@@ -1575,6 +1764,9 @@
             if (!timelineData.ratingKey) {
                 return;
             }
+
+            // Store containerKey so skip-album can locate the current playQueue
+            state.currentContainerKey = timelineData.containerKey || null;
 
             try {
                 const metadata = await plexConnection.fetchMetadata(timelineData.ratingKey);
@@ -1624,9 +1816,11 @@
                     const queueInfo = await plexConnection.fetchPlayQueue(timelineData.containerKey);
                     state.queuePosition = queueInfo?.position ?? null;
                     state.queueTotal = queueInfo?.total ?? null;
+                    state.playQueueIsPlaylist = queueInfo?.isPlaylistQueue ?? false;
                 } else {
                     state.queuePosition = null;
                     state.queueTotal = null;
+                    state.playQueueIsPlaylist = false;
                 }
 
                 // Load album art if changed
@@ -1882,8 +2076,11 @@
             const format = media?.audioCodec ? media.audioCodec.toUpperCase() : '---';
             const bitrate = media?.bitrate ? `${Math.round(media.bitrate)} kbps` : '';
             const isInQueue = state.queuePosition !== null && state.queueTotal !== null;
-            const trackNum = isInQueue ? state.queuePosition : (state.currentTrack.index || '?');
-            const totalTracks = isInQueue ? state.queueTotal : (state.albumTrackCount || '?');
+            // Determined at queue load time by checking if the play queue spans multiple albums.
+            // Album queues: show the track's own index (matches what Plexamp shows, shuffle-safe).
+            // Playlist queues: show queue position (the track's rank in the playlist).
+            const trackNum = (isInQueue && state.playQueueIsPlaylist) ? state.queuePosition : (state.currentTrack.index || '?');
+            const totalTracks = (isInQueue && state.playQueueIsPlaylist) ? state.queueTotal : (state.albumTrackCount || '?');
             const trackStr = `${trackNum}/${totalTracks}`;
 
             // Symmetrical spacing: format, bitrate, label, track number
@@ -2507,6 +2704,17 @@
             ctx.restore();
         }
 
+        // Show FADING label while a fade-out is in progress for this button
+        if (direction === 'down' && state.activeFadeContext === context) {
+            ctx.save();
+            ctx.fillStyle = COLORS.WHITE;
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('FADING', S / 2, S - 6);
+            ctx.restore();
+        }
+
         sendImage(context, canvas.toDataURL('image/png'));
     }
 
@@ -2666,6 +2874,220 @@
     }
 
     /**
+     * Render track title button.
+     *
+     * Layout (144×144, symmetrical gaps):
+     *   "TITLE" label  — textColor, 22px bold
+     *   Track title    — accentColor, auto-sized 14–36px bold, 1-line or 2-line word-wrap
+     */
+    function renderTrackTitle(context) {
+        const canvas = createCanvas();
+        const ctx = canvas.getContext('2d');
+        const S = CANVAS.BUTTON_SIZE; // 144
+
+        ctx.fillStyle = COLORS.BLACK;
+        ctx.fillRect(0, 0, S, S);
+
+        const isDimmed    = state.playbackState === 'stopped';
+        const textColor   = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
+        const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
+
+        if (!state.currentTrack) {
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font         = '16px sans-serif';
+            ctx.fillStyle    = COLORS.DARK_GRAY;
+            ctx.fillText('No Track', S / 2, S / 2);
+            sendImage(context, canvas.toDataURL('image/png'));
+            return;
+        }
+
+        // "TITLE" label — identical style to "RATING" / "TRACK" on sibling buttons
+        ctx.textAlign = 'center';
+        ctx.font      = 'bold 26px sans-serif';
+        ctx.fillStyle = textColor;
+        ctx.fillText('TITLE', S / 2, 32); // alphabetic baseline at 32, matches Rating/Info
+
+        const title       = state.currentTrack.title || 'Unknown Title';
+        const maxTitleFt  = 52;
+        const minTitleFt  = 13;
+        const lineSpacing = 1.25;
+        const maxW        = S - 16; // 8px padding each side
+        const words       = title.split(' ');
+
+        // Content area sits below the label (label baseline 32 + ~8px descender gap = 40)
+        // leaving 144 - 40 - 8 = 96px tall content zone, centred at y=92
+        const contentCY = 92;
+        const contentH  = 96;
+
+        // ── Find largest font where title fits into contentH (1, 2, or 3 lines) ──
+        let titleFont, titleLines, titleBlockH;
+
+        for (let fs = maxTitleFt; fs >= minTitleFt; fs--) {
+            ctx.font = `bold ${fs}px sans-serif`;
+            const lineH = fs * lineSpacing;
+
+            // Single line
+            if (ctx.measureText(title).width <= maxW && fs <= contentH) {
+                titleFont   = fs;
+                titleLines  = [title];
+                titleBlockH = fs;
+                break;
+            }
+
+            // 2-line word-wrap
+            if (words.length >= 2) {
+                const blockH2 = lineH + fs;
+                if (blockH2 <= contentH) {
+                    let best2 = null, bestDiff = Infinity;
+                    for (let s = 1; s < words.length; s++) {
+                        const l1 = words.slice(0, s).join(' ');
+                        const l2 = words.slice(s).join(' ');
+                        if (ctx.measureText(l1).width <= maxW && ctx.measureText(l2).width <= maxW) {
+                            const diff = Math.abs(ctx.measureText(l1).width - ctx.measureText(l2).width);
+                            if (diff < bestDiff) { bestDiff = diff; best2 = s; }
+                        }
+                    }
+                    if (best2 !== null) {
+                        titleFont   = fs;
+                        titleLines  = [words.slice(0, best2).join(' '), words.slice(best2).join(' ')];
+                        titleBlockH = blockH2;
+                        break;
+                    }
+                }
+            }
+
+            // 3-line word-wrap
+            if (words.length >= 3) {
+                const blockH3 = 2 * lineH + fs;
+                if (blockH3 <= contentH) {
+                    let best3 = null, bestDiff = Infinity;
+                    for (let s1 = 1; s1 < words.length - 1; s1++) {
+                        for (let s2 = s1 + 1; s2 < words.length; s2++) {
+                            const l1 = words.slice(0, s1).join(' ');
+                            const l2 = words.slice(s1, s2).join(' ');
+                            const l3 = words.slice(s2).join(' ');
+                            if (ctx.measureText(l1).width <= maxW &&
+                                ctx.measureText(l2).width <= maxW &&
+                                ctx.measureText(l3).width <= maxW) {
+                                const widths = [l1, l2, l3].map(l => ctx.measureText(l).width);
+                                const diff = Math.max(...widths) - Math.min(...widths);
+                                if (diff < bestDiff) { bestDiff = diff; best3 = [s1, s2]; }
+                            }
+                        }
+                    }
+                    if (best3 !== null) {
+                        const [s1, s2] = best3;
+                        titleFont   = fs;
+                        titleLines  = [
+                            words.slice(0, s1).join(' '),
+                            words.slice(s1, s2).join(' '),
+                            words.slice(s2).join(' ')
+                        ];
+                        titleBlockH = blockH3;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Ellipsis fallback
+        if (!titleFont) {
+            titleFont = minTitleFt;
+            ctx.font  = `bold ${minTitleFt}px sans-serif`;
+            let display = title;
+            while (display.length > 1 && ctx.measureText(display + '\u2026').width > maxW) {
+                display = display.slice(0, -1);
+            }
+            titleLines  = [display.trimEnd() + '\u2026'];
+            titleBlockH = minTitleFt;
+        }
+
+        // Draw title block centred in content area
+        ctx.font      = `bold ${titleFont}px sans-serif`;
+        ctx.fillStyle = accentColor;
+        ctx.textAlign = 'center';
+        if (titleLines.length === 1) {
+            ctx.textBaseline = 'middle';
+            ctx.fillText(titleLines[0], S / 2, contentCY);
+        } else {
+            ctx.textBaseline = 'top';
+            const lineH       = titleFont * lineSpacing;
+            const blockStartY = contentCY - titleBlockH / 2;
+            titleLines.forEach((line, i) => ctx.fillText(line, S / 2, blockStartY + i * lineH));
+        }
+
+        sendImage(context, canvas.toDataURL('image/png'));
+    }
+
+    /**
+     * Shared album-skip button renderer.
+     * direction: 'next' = triangle→bar (right), 'prev' = bar←triangle (left)
+     */
+    function renderAlbumSkip(context, direction) {
+        const canvas = createCanvas();
+        const ctx = canvas.getContext('2d');
+        const S = CANVAS.BUTTON_SIZE; // 144
+
+        ctx.fillStyle = COLORS.BLACK;
+        ctx.fillRect(0, 0, S, S);
+
+        const settings  = state.getActionSettings(context) || {};
+        const iconSize  = parseInt(settings.navigationIconSize) || 60;
+        const isDimmed  = state.playbackState === 'stopped';
+        ctx.fillStyle   = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
+
+        const cx    = S / 2;
+        const cy    = S / 2;
+        const halfH = iconSize / 2;
+        const triW  = iconSize * 0.6;
+        const gap   = iconSize * 0.1;
+        const barW  = iconSize * 0.2;
+        const totalW = triW + gap + barW;
+
+        if (direction === 'next') {
+            // Right-pointing triangle + bar on the right
+            const startX = cx - totalW / 2;
+            const tipX   = startX + triW;
+            ctx.beginPath();
+            ctx.moveTo(tipX, cy);
+            ctx.lineTo(startX, cy - halfH);
+            ctx.lineTo(startX, cy + halfH);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillRect(tipX + gap, cy - halfH, barW, iconSize);
+        } else {
+            // Bar on the left + left-pointing triangle
+            const startX  = cx - totalW / 2;
+            const barEnd  = startX + barW;
+            const triBase = barEnd + gap;
+            ctx.fillRect(startX, cy - halfH, barW, iconSize);
+            ctx.beginPath();
+            ctx.moveTo(triBase, cy);
+            ctx.lineTo(triBase + triW, cy - halfH);
+            ctx.lineTo(triBase + triW, cy + halfH);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        sendImage(context, canvas.toDataURL('image/png'));
+    }
+
+    /**
+     * Render next-album button
+     */
+    function renderSkipAlbum(context) {
+        renderAlbumSkip(context, 'next');
+    }
+
+    /**
+     * Render previous-album button
+     */
+    function renderPrevAlbum(context) {
+        renderAlbumSkip(context, 'prev');
+    }
+
+    /**
      * Send image to Stream Deck
      */
     function sendImage(context, dataUrl) {
@@ -2690,7 +3112,10 @@
         renderRepeat,
         renderVolumeUp,
         renderVolumeDown,
-        renderPlaylist
+        renderPlaylist,
+        renderTrackTitle,
+        renderSkipAlbum,
+        renderPrevAlbum
     };
 
     /**
@@ -3606,21 +4031,69 @@
             // Capture the exact holdState object created above so a later rapid press
             // can't be mistaken for this one when the timeout fires.
             const thisHoldState = state.buttonHoldState[context];
-            setTimeout(() => {
+            setTimeout(async () => {
                 const holdState = state.buttonHoldState[context];
                 // Bail if the hold state is gone or belongs to a different press
                 if (!holdState || holdState !== thisHoldState || holdState.didMute) return;
                 holdState.didMute = true;
 
                 if (state.muteRestoreVolume !== null) {
-                    // Already muted — restore
+                    // Already muted/faded — restore volume then resume playback
+                    state.activeFadeTimer = null;   // generation mismatch stops any in-progress async fade
+                    state.activeFadeContext = null;
                     const restoreVol = state.muteRestoreVolume;
                     state.muteRestoreVolume = null;
-                    playbackController.setVolume(restoreVol);
+                    await playbackController.setVolume(restoreVol);
+                    await playbackController.play();
                 } else {
-                    // Mute — save current volume then go to 0
+                    // Save current volume as restore target
                     state.muteRestoreVolume = state.currentVolume > 0 ? state.currentVolume : 50;
-                    playbackController.setVolume(0);
+
+                    const settings = state.getActionSettings(context) || {};
+                    if (settings.fadeOut) {
+                        // Fade-out mode: time-based interpolation with fire-and-forget setVolume
+                        // so the fade duration is not subject to network round-trip latency.
+                        // A generation counter lets cancellation work safely across awaits.
+                        const gen = Date.now();
+                        state.activeFadeTimer = gen;
+                        state.activeFadeContext = context;
+
+                        const fadeStartVolume = state.currentVolume;
+                        const fadeStartTime = Date.now();
+                        const fadeDurationMs = settings.fadeDuration != null && settings.fadeDuration >= 1
+                            ? settings.fadeDuration * 1000
+                            : VOLUME.FADE_DURATION;
+
+                        const doFadeTick = async () => {
+                            if (state.activeFadeTimer !== gen) return; // cancelled
+                            const elapsed = Date.now() - fadeStartTime;
+                            const progress = Math.min(elapsed / fadeDurationMs, 1);
+                            const newVolume = Math.max(0, Math.round(fadeStartVolume * (1 - progress)));
+                            if (newVolume <= 0 || progress >= 1) {
+                                // Final step: await for reliable ordering before pause
+                                await playbackController.setVolume(0);
+                                if (state.activeFadeTimer !== gen) return; // cancelled during await
+                                state.activeFadeTimer = null;
+                                state.activeFadeContext = null;
+                                await playbackController.pause();
+                                updateDisplay(context); // clear FADING label
+                                return;
+                            }
+                            // Await so the local player never receives concurrent requests.
+                            // After the await, subtract time already spent so the next tick
+                            // fires at roughly FADE_INTERVAL ms after this one started.
+                            const tickStart = Date.now();
+                            await playbackController.setVolume(newVolume);
+                            if (state.activeFadeTimer !== gen) return; // cancelled during await
+                            const remaining = Math.max(0, VOLUME.FADE_INTERVAL - (Date.now() - tickStart));
+                            setTimeout(doFadeTick, remaining);
+                        };
+                        doFadeTick();
+                    } else {
+                        // Instant mute — go to 0 then pause
+                        await playbackController.setVolume(0);
+                        await playbackController.pause();
+                    }
                 }
             }, TIMING.HOLD_THRESHOLD);
         }
@@ -3707,13 +4180,23 @@
             holdState.isHolding = false;
         }
         
+        // While muted/held, a short press on Volume Down must not corrupt the restore target.
+        // Treat it as a no-op so only a long-press can restore.
+        if (action === ACTIONS.VOLUME_DOWN && state.muteRestoreVolume !== null && !holdState.didMute) {
+            delete state.buttonHoldState[context];
+            return;
+        }
+
         // If we were seeking or muting, don't also fire the tap action
         if (holdState.didSeek || holdState.didMute) {
-            // Reset button to normal state
+            // Reset button to normal state immediately so the display reflects the
+            // post-action volume rather than whatever was cached before the hold.
             if (action === ACTIONS.PREVIOUS) {
                 buttonRenderer.renderPrevious(context);
             } else if (action === ACTIONS.NEXT) {
                 buttonRenderer.renderNext(context);
+            } else if (action === ACTIONS.VOLUME_DOWN) {
+                buttonRenderer.renderVolumeDown(context);
             }
             delete state.buttonHoldState[context];
             return;
@@ -3942,15 +4425,28 @@
                 state.toggleTimeDisplayMode(context);
                 logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
                 break;
+            case ACTIONS.TRACK_TITLE:
+                // No tap action for track title button
+                break;
+            case ACTIONS.SKIP_ALBUM:
+                await playbackController.skipToNextAlbum();
+                break;
+            case ACTIONS.PREV_ALBUM:
+                await playbackController.skipToPrevAlbum();
+                break;
             case ACTIONS.VOLUME_UP: {
-                // Clear mute state — user is taking manual control
+                // Clear mute/fade state — user is taking manual control
+                state.activeFadeTimer = null;   // generation mismatch cancels any async fade
+                state.activeFadeContext = null;
                 state.muteRestoreVolume = null;
                 const newVol = Math.min(VOLUME.MAX, state.currentVolume + VOLUME.STEP);
                 await playbackController.setVolume(newVol);
                 break;
             }
             case ACTIONS.VOLUME_DOWN: {
-                // Clear mute state — user is taking manual control
+                // Clear mute/fade state — user is taking manual control
+                state.activeFadeTimer = null;   // generation mismatch cancels any async fade
+                state.activeFadeContext = null;
                 state.muteRestoreVolume = null;
                 const newVol = Math.max(VOLUME.MIN, state.currentVolume - VOLUME.STEP);
                 await playbackController.setVolume(newVol);
@@ -4190,6 +4686,15 @@
                 break;
             case ACTIONS.PLAYLIST:
                 buttonRenderer.renderPlaylist(context);
+                break;
+            case ACTIONS.TRACK_TITLE:
+                buttonRenderer.renderTrackTitle(context);
+                break;
+            case ACTIONS.SKIP_ALBUM:
+                buttonRenderer.renderSkipAlbum(context);
+                break;
+            case ACTIONS.PREV_ALBUM:
+                buttonRenderer.renderPrevAlbum(context);
                 break;
         }
     }

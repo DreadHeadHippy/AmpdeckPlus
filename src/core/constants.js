@@ -4,7 +4,7 @@
  */
 
 // Version
-export const VERSION = '2.0.11';
+export const VERSION = '2.0.12';
 
 // Action identifiers
 export const ACTIONS = {
@@ -22,7 +22,10 @@ export const ACTIONS = {
     STRIP: 'com.dreadheadhippy.ampdeckplus.strip',
     VOLUME_UP: 'com.dreadheadhippy.ampdeckplus.volume-up',
     VOLUME_DOWN: 'com.dreadheadhippy.ampdeckplus.volume-down',
-    PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist'
+    PLAYLIST: 'com.dreadheadhippy.ampdeckplus.playlist',
+    TRACK_TITLE: 'com.dreadheadhippy.ampdeckplus.track-title',
+    SKIP_ALBUM: 'com.dreadheadhippy.ampdeckplus.skip-album',
+    PREV_ALBUM: 'com.dreadheadhippy.ampdeckplus.prev-album'
 };
 
 // Timing constants
@@ -49,7 +52,9 @@ export const SCROLL = {
 export const VOLUME = {
     STEP: 5,                       // Volume change per step
     MIN: 0,
-    MAX: 100
+    MAX: 100,
+    FADE_DURATION: 3000,           // Total fade-out duration in ms (100 → 0)
+    FADE_INTERVAL: 150             // Target ms per tick; actual gap = max(0, interval - Plex latency)
 };
 
 // Rating

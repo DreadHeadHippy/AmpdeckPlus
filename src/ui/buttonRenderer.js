@@ -138,8 +138,11 @@ export function renderInfo(context) {
         const format = media?.audioCodec ? media.audioCodec.toUpperCase() : '---';
         const bitrate = media?.bitrate ? `${Math.round(media.bitrate)} kbps` : '';
         const isInQueue = state.queuePosition !== null && state.queueTotal !== null;
-        const trackNum = isInQueue ? state.queuePosition : (state.currentTrack.index || '?');
-        const totalTracks = isInQueue ? state.queueTotal : (state.albumTrackCount || '?');
+        // Determined at queue load time by checking if the play queue spans multiple albums.
+        // Album queues: show the track's own index (matches what Plexamp shows, shuffle-safe).
+        // Playlist queues: show queue position (the track's rank in the playlist).
+        const trackNum = (isInQueue && state.playQueueIsPlaylist) ? state.queuePosition : (state.currentTrack.index || '?');
+        const totalTracks = (isInQueue && state.playQueueIsPlaylist) ? state.queueTotal : (state.albumTrackCount || '?');
         const trackStr = `${trackNum}/${totalTracks}`;
 
         // Symmetrical spacing: format, bitrate, label, track number
@@ -763,6 +766,17 @@ function renderVolumeButton(context, direction) {
         ctx.restore();
     }
 
+    // Show FADING label while a fade-out is in progress for this button
+    if (direction === 'down' && state.activeFadeContext === context) {
+        ctx.save();
+        ctx.fillStyle = COLORS.WHITE;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('FADING', S / 2, S - 6);
+        ctx.restore();
+    }
+
     sendImage(context, canvas.toDataURL('image/png'));
 }
 
@@ -922,6 +936,220 @@ export function renderPlaylist(context) {
 }
 
 /**
+ * Render track title button.
+ *
+ * Layout (144×144, symmetrical gaps):
+ *   "TITLE" label  — textColor, 22px bold
+ *   Track title    — accentColor, auto-sized 14–36px bold, 1-line or 2-line word-wrap
+ */
+export function renderTrackTitle(context) {
+    const canvas = createCanvas();
+    const ctx = canvas.getContext('2d');
+    const S = CANVAS.BUTTON_SIZE; // 144
+
+    ctx.fillStyle = COLORS.BLACK;
+    ctx.fillRect(0, 0, S, S);
+
+    const isDimmed    = state.playbackState === 'stopped';
+    const textColor   = isDimmed ? COLORS.DARK_GRAY : getTextColor();
+    const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
+
+    if (!state.currentTrack) {
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font         = '16px sans-serif';
+        ctx.fillStyle    = COLORS.DARK_GRAY;
+        ctx.fillText('No Track', S / 2, S / 2);
+        sendImage(context, canvas.toDataURL('image/png'));
+        return;
+    }
+
+    // "TITLE" label — identical style to "RATING" / "TRACK" on sibling buttons
+    ctx.textAlign = 'center';
+    ctx.font      = 'bold 26px sans-serif';
+    ctx.fillStyle = textColor;
+    ctx.fillText('TITLE', S / 2, 32); // alphabetic baseline at 32, matches Rating/Info
+
+    const title       = state.currentTrack.title || 'Unknown Title';
+    const maxTitleFt  = 52;
+    const minTitleFt  = 13;
+    const lineSpacing = 1.25;
+    const maxW        = S - 16; // 8px padding each side
+    const words       = title.split(' ');
+
+    // Content area sits below the label (label baseline 32 + ~8px descender gap = 40)
+    // leaving 144 - 40 - 8 = 96px tall content zone, centred at y=92
+    const contentCY = 92;
+    const contentH  = 96;
+
+    // ── Find largest font where title fits into contentH (1, 2, or 3 lines) ──
+    let titleFont, titleLines, titleBlockH;
+
+    for (let fs = maxTitleFt; fs >= minTitleFt; fs--) {
+        ctx.font = `bold ${fs}px sans-serif`;
+        const lineH = fs * lineSpacing;
+
+        // Single line
+        if (ctx.measureText(title).width <= maxW && fs <= contentH) {
+            titleFont   = fs;
+            titleLines  = [title];
+            titleBlockH = fs;
+            break;
+        }
+
+        // 2-line word-wrap
+        if (words.length >= 2) {
+            const blockH2 = lineH + fs;
+            if (blockH2 <= contentH) {
+                let best2 = null, bestDiff = Infinity;
+                for (let s = 1; s < words.length; s++) {
+                    const l1 = words.slice(0, s).join(' ');
+                    const l2 = words.slice(s).join(' ');
+                    if (ctx.measureText(l1).width <= maxW && ctx.measureText(l2).width <= maxW) {
+                        const diff = Math.abs(ctx.measureText(l1).width - ctx.measureText(l2).width);
+                        if (diff < bestDiff) { bestDiff = diff; best2 = s; }
+                    }
+                }
+                if (best2 !== null) {
+                    titleFont   = fs;
+                    titleLines  = [words.slice(0, best2).join(' '), words.slice(best2).join(' ')];
+                    titleBlockH = blockH2;
+                    break;
+                }
+            }
+        }
+
+        // 3-line word-wrap
+        if (words.length >= 3) {
+            const blockH3 = 2 * lineH + fs;
+            if (blockH3 <= contentH) {
+                let best3 = null, bestDiff = Infinity;
+                for (let s1 = 1; s1 < words.length - 1; s1++) {
+                    for (let s2 = s1 + 1; s2 < words.length; s2++) {
+                        const l1 = words.slice(0, s1).join(' ');
+                        const l2 = words.slice(s1, s2).join(' ');
+                        const l3 = words.slice(s2).join(' ');
+                        if (ctx.measureText(l1).width <= maxW &&
+                            ctx.measureText(l2).width <= maxW &&
+                            ctx.measureText(l3).width <= maxW) {
+                            const widths = [l1, l2, l3].map(l => ctx.measureText(l).width);
+                            const diff = Math.max(...widths) - Math.min(...widths);
+                            if (diff < bestDiff) { bestDiff = diff; best3 = [s1, s2]; }
+                        }
+                    }
+                }
+                if (best3 !== null) {
+                    const [s1, s2] = best3;
+                    titleFont   = fs;
+                    titleLines  = [
+                        words.slice(0, s1).join(' '),
+                        words.slice(s1, s2).join(' '),
+                        words.slice(s2).join(' ')
+                    ];
+                    titleBlockH = blockH3;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Ellipsis fallback
+    if (!titleFont) {
+        titleFont = minTitleFt;
+        ctx.font  = `bold ${minTitleFt}px sans-serif`;
+        let display = title;
+        while (display.length > 1 && ctx.measureText(display + '\u2026').width > maxW) {
+            display = display.slice(0, -1);
+        }
+        titleLines  = [display.trimEnd() + '\u2026'];
+        titleBlockH = minTitleFt;
+    }
+
+    // Draw title block centred in content area
+    ctx.font      = `bold ${titleFont}px sans-serif`;
+    ctx.fillStyle = accentColor;
+    ctx.textAlign = 'center';
+    if (titleLines.length === 1) {
+        ctx.textBaseline = 'middle';
+        ctx.fillText(titleLines[0], S / 2, contentCY);
+    } else {
+        ctx.textBaseline = 'top';
+        const lineH       = titleFont * lineSpacing;
+        const blockStartY = contentCY - titleBlockH / 2;
+        titleLines.forEach((line, i) => ctx.fillText(line, S / 2, blockStartY + i * lineH));
+    }
+
+    sendImage(context, canvas.toDataURL('image/png'));
+}
+
+/**
+ * Shared album-skip button renderer.
+ * direction: 'next' = triangle→bar (right), 'prev' = bar←triangle (left)
+ */
+function renderAlbumSkip(context, direction) {
+    const canvas = createCanvas();
+    const ctx = canvas.getContext('2d');
+    const S = CANVAS.BUTTON_SIZE; // 144
+
+    ctx.fillStyle = COLORS.BLACK;
+    ctx.fillRect(0, 0, S, S);
+
+    const settings  = state.getActionSettings(context) || {};
+    const iconSize  = parseInt(settings.navigationIconSize) || 60;
+    const isDimmed  = state.playbackState === 'stopped';
+    ctx.fillStyle   = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
+
+    const cx    = S / 2;
+    const cy    = S / 2;
+    const halfH = iconSize / 2;
+    const triW  = iconSize * 0.6;
+    const gap   = iconSize * 0.1;
+    const barW  = iconSize * 0.2;
+    const totalW = triW + gap + barW;
+
+    if (direction === 'next') {
+        // Right-pointing triangle + bar on the right
+        const startX = cx - totalW / 2;
+        const tipX   = startX + triW;
+        ctx.beginPath();
+        ctx.moveTo(tipX, cy);
+        ctx.lineTo(startX, cy - halfH);
+        ctx.lineTo(startX, cy + halfH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(tipX + gap, cy - halfH, barW, iconSize);
+    } else {
+        // Bar on the left + left-pointing triangle
+        const startX  = cx - totalW / 2;
+        const barEnd  = startX + barW;
+        const triBase = barEnd + gap;
+        ctx.fillRect(startX, cy - halfH, barW, iconSize);
+        ctx.beginPath();
+        ctx.moveTo(triBase, cy);
+        ctx.lineTo(triBase + triW, cy - halfH);
+        ctx.lineTo(triBase + triW, cy + halfH);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    sendImage(context, canvas.toDataURL('image/png'));
+}
+
+/**
+ * Render next-album button
+ */
+export function renderSkipAlbum(context) {
+    renderAlbumSkip(context, 'next');
+}
+
+/**
+ * Render previous-album button
+ */
+export function renderPrevAlbum(context) {
+    renderAlbumSkip(context, 'prev');
+}
+
+/**
  * Send image to Stream Deck
  */
 function sendImage(context, dataUrl) {
@@ -946,5 +1174,8 @@ export default {
     renderRepeat,
     renderVolumeUp,
     renderVolumeDown,
-    renderPlaylist
+    renderPlaylist,
+    renderTrackTitle,
+    renderSkipAlbum,
+    renderPrevAlbum
 };

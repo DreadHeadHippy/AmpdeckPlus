@@ -27,11 +27,16 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.11
+## ⚡ What's New in v2.0.12
 
-- **✨ Track Info shows playlist position** — When playing from a playlist, the Track Info button now displays the track's position within the playlist (e.g. `3/24`) instead of the album position (e.g. `4/16`). Falls back to album position when not playing a playlist.
-- **🐛 Single-star rating cycles through all 3 Plexamp states** — The Rating button in single-star mode now correctly mirrors Plexamp: tap once for liked (filled ★), tap again for disliked (★ with diagonal strikethrough), tap once more to clear. Previously every rated track was sent as "disliked".
-- **🎨 Disliked star gets a diagonal strikethrough** — The disliked state on the Rating button draws a vivid diagonal "/" line across the star in the accent color, making it instantly distinguishable from liked at a glance.
+- **✨ Track Title button** — New button showing the current track title in large auto-sized, word-wrapped text (up to 3 lines).
+- **✨ Next Album / Previous Album buttons** — Skip forward or back a whole album within a playlist queue. Perfect for playlist listeners who browse by album.
+- **✨ Fade Out on hold-to-mute** — Enable **"Fade Out on hold-to-mute"** in the Volume Down button settings. When on, holding the button fades the volume to 0 before pausing — perfect for streaming. Hold again to restore the original volume and resume playback. Fade duration is configurable from 1–30 seconds (default: 3s).
+- **✨ Hold-to-mute now pauses & resumes** — Even without Fade Out enabled, holding Volume Down to mute now pauses playback automatically, and holding again restores volume and resumes.
+- **🎨 Previous / Next sidebar icons** — The action picker icons for Previous and Next now match the double-triangle icons drawn on the buttons at runtime.
+- **🐛 Track Info now shows the right track number no matter how you're listening** — Playing an album (shuffled or not) shows the track's real position on that album, just like Plexamp does. Playing a playlist (shuffled or not) shows where you are in the playlist. The plugin figures out which type of queue you're in automatically.
+- **🐛 Volume button no longer visually resets while muted** — The volume button's accent fill no longer snaps back to the pre-mute level a few seconds after muting.
+- **🐛 Short-pressing Volume Down while muted no longer breaks volume restore** — Tapping Volume Down while the player was muted (via hold-to-mute) could cause volume to snap back to 50% instead of what it was before. It's now a no-op while muted so the original volume always restores correctly.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -48,13 +53,15 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star, half star, or single-star). In **single-star mode**, tapping cycles through all three Plexamp states: unrated (☆) → liked (★) → disliked (★ with diagonal strikethrough) → unrated. Wraps from 5 stars back to 0 for quick clearing in multi-star modes.
 - **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
-- **Volume Up / Down** — Dedicated buttons with a canvas-drawn speaker icon. The icon fills with the album art accent color from the bottom proportional to current volume. Hold **Volume Down** for 400ms to mute; hold again to restore.
+- **Volume Up / Down** — Dedicated buttons with a canvas-drawn speaker icon. The icon fills with the album art accent color from the bottom proportional to current volume. Hold **Volume Down** for 400ms to mute and pause; hold again to restore volume and resume. Enable **"Fade Out on hold-to-mute"** in the button settings for a gradual fade instead of an instant cut — ideal for streaming. Configure the fade duration from 1–30 seconds (default: 3s).
 - **Play / Pause** — Dedicated button with instant visual feedback.
-- **Previous / Next** — Tap to skip tracks. Hold for 400ms to activate seek mode with **animated directional arrows** that smoothly travel across the button and wrap around Pac-Man style. Previous arrows move left, Next arrows move right. Configurable icon size (24-48px) with four preset options.
+- **Previous / Next** — Tap to skip tracks. Hold for 400ms to activate seek mode with **animated directional arrows** that smoothly travel across the button and wrap around Pac-Man style. Previous arrows move left, Next arrows move right. Configurable icon size (40-72px) with four preset options.
 - **Paused State Visual Feedback** — When playback is paused, all buttons turn gray automatically: Album Art overlay, Navigation buttons, and all other action tiles provide clear visual indication.
-- **Shuffle** — Toggle shuffle on/off with visual state indicator. Dims when paused.
-- **Repeat** — Cycle through repeat modes: Off → All → One. Dims when paused.
-- **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing. When playing a playlist the track counter reflects position within the playlist; when playing an album it shows the album track position. Font auto-shrinks on large playlists so numbers always fit.
+- **Shuffle** — Toggle shuffle on/off with visual state indicator.
+- **Repeat** — Cycle through repeat modes: Off → All → One.
+- **Track Info** — Audio codec, bitrate, and track number at a glance with enlarged, easy-to-read text and symmetrical spacing. Intelligently distinguishes between album and playlist queues: when playing an album (shuffled or not) it shows the track's real position on the album (e.g. `7/14`), matching what Plexamp displays; when playing a playlist it shows the track's position within the full playlist (e.g. `342/8837`). Font auto-shrinks on large playlists so numbers always fit.
+- **Track Title** — Dedicated button that displays the current track title in large auto-sized text. Supports up to 3 lines of word-wrapped text, scaling the font automatically to best fill the available space. Dims to gray when Plexamp is disconnected.
+- **Next Album / Previous Album** — Skip forward or back to the first track of the next or previous album in the current playlist queue. Ideal for playlist listeners who want to jump whole albums at a time. Configurable icon size matching the Next/Previous buttons. Silently no-ops when not playing from a playlist queue.
 - **Time Elapsed** — Large elapsed/total time display (42px/40px fonts) with its own progress bar and symmetrical spacing. **Tap to toggle** between `elapsed / total` and `elapsed / -remaining` display modes, just like Plexamp.
 - **Dynamic Colors** — Progress bar and accent colors adapt to the current album art, or lock to orange if you prefer. Canvas-rendered navigation buttons use dynamic accent colors when active.
 - **Configurable Text Colors** — Choose from White, Light Gray, Orange, Amber, or Black to match your setup.
@@ -91,6 +98,9 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 | Track Info | ✓ | ✓ |
 | Time Elapsed | ✓ | ✓ |
 | Rating | ✓ | ✓ |
+| Track Title | ✓ | ✓ |
+| Next Album | ✓ | ✓ |
+| Previous Album | ✓ | ✓ |
 | Volume Up | ✓ | ✓ |
 | Volume Down | ✓ | ✓ |
 | Now Playing Strip | — | ✓ |
@@ -141,7 +151,7 @@ The install scripts will update the plugin while preserving your settings.
 
 3. Drag **Album Art** to any button
 4. Drag **Now Playing Strip** to all 4 dials
-5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Volume Up**, **Volume Down**, **Shuffle**, **Repeat**, **Track Info**, **Time Elapsed**, or **Rating** to buttons
+5. Optionally drag **Play/Pause**, **Previous**, **Next**, **Next Album**, **Previous Album**, **Volume Up**, **Volume Down**, **Shuffle**, **Repeat**, **Track Info**, **Track Title**, **Time Elapsed**, or **Rating** to buttons
 6. Click any Ampdeck+ action and configure:
 
 ### Plex Setup

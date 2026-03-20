@@ -4,6 +4,28 @@
 
 ---
 
+## [2.0.12] - 2026-03-18
+
+### ✨ New Features
+- **Fade Out on hold-to-mute** — The Volume Down button now has an optional **"Fade Out on hold-to-mute"** setting (in the button's Property Inspector). When enabled, holding the button for 400ms gradually fades the volume  to 0 over ~3 seconds instead of cutting instantly, then pauses playback. Holding again restores the original volume and resumes playback. With the setting off, hold-to-mute now also pauses playback on mute and resumes on unmute (matching the fade behaviour).
+- **Configurable fade duration** — When "Fade Out on hold-to-mute" is enabled, a **Fade Duration** field appears in the Volume Down button settings. Set the fade length anywhere from 1 to 30 seconds (default: 3s).
+- **Track Title button** — New button action that displays the current track title in large, auto-sized text. Supports up to 3 lines of word-wrapped text and scales the font automatically to fill the available space. Shows "No Track" when Plexamp is disconnected.
+- **Next Album button** — Skips forward to the first track of the next album in the current playlist queue. Ideal for playlist listeners who want to jump whole albums at a time. Supports configurable icon size. Works only when playing from a playlist queue — silently no-ops otherwise.
+- **Previous Album button** — Skips back to the first track of the previous album in the current playlist queue. Mirrors Next Album in behaviour and settings.
+
+### 🎨 Visual Polish
+- **Previous / Next sidebar icons updated** — The action picker icons for Previous and Next now match the actual canvas-drawn double-triangle icons rendered on the buttons at runtime.
+
+### 🐛 Bug Fixes
+- **Volume button accent fill resets during mute** — While muted or fading, the timeline poll would periodically overwrite `currentVolume` with the pre-mute level reported by Plexamp, causing the volume button to visually refill as if the volume had never changed. The timeline volume update is now suppressed while a mute or fade is active.
+- **Track Info shows correct track number in all queue scenarios** — Track number display is now driven by the actual queue type rather than heuristics:
+  - **Album queue (shuffled or not):** shows the track's real position on the album (e.g. `7/14`), matching what Plexamp displays.
+  - **Playlist queue (shuffled or not):** shows the track's position within the full playlist (e.g. `342/8837`).
+  - Queue type is determined by inspecting `parentRatingKey` diversity across all tracks in the full queue response, which is reliable regardless of shuffle state, skip history, or reshuffle operations.
+- **Hold-to-mute short-press while muted no longer corrupts volume restore target** — Short-pressing Volume Down while the player was muted (via hold) was incorrectly passing through to `handleButtonAction`, which cleared `muteRestoreVolume` and caused volume to restore to the fallback 50% instead of the original level. The short press is now a no-op while muted.
+
+---
+
 ## [2.0.11] - 2026-03-18
 
 ### ✨ New Features

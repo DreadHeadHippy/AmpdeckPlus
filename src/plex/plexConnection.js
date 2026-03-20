@@ -400,6 +400,30 @@ class PlexConnection {
         }
     }
     /**
+     * PUT to the server-side playQueue to toggle shuffle (or repeat).
+     * Plexamp shuffles albums by reordering the actual queue on the server rather than
+     * just flipping a local flag, so setParameters alone is insufficient. This call
+     * makes the server reorder the queue and push a notification to Plexamp.
+     */
+    async updatePlayQueueShuffle(containerKey, shuffle) {
+        if (!this.serverUrl || !this.token) return;
+
+        const url = `${this.serverUrl}${containerKey}?shuffle=${shuffle}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: this.createHeaders(true)
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            logger.debug(`PlayQueue shuffle set to ${shuffle}`);
+        } catch (error) {
+            logger.error(`Failed to update playQueue shuffle: ${error.message}`);
+        }
+    }
+
+    /**
      * Fetch play queue position data.
      * Returns { position (1-based), total } or null.
      */
@@ -408,7 +432,10 @@ class PlexConnection {
             return null;
         }
 
-        const url = `${this.serverUrl}${containerKey}`;
+        // window=10000 ensures we see the full queue for parentRatingKey diversity detection.
+        // Without it, the windowed response (~50 items around current position) can return
+        // only same-album tracks even in a playlist, causing false album-queue detection.
+        const url = `${this.serverUrl}${containerKey}?window=10000`;
 
         try {
             const response = await fetch(url, {
@@ -428,10 +455,22 @@ class PlexConnection {
 
             const offset = parseInt(container.getAttribute('playQueueSelectedItemOffset')) || 0;
             const total = parseInt(container.getAttribute('playQueueTotalCount')) || 0;
+            const sourceURI = container.getAttribute('playQueueSourceURI') || '';
 
             if (!total) return null;
 
-            return { position: offset + 1, total };
+            // Detect playlist queue by checking parentRatingKey diversity across all tracks.
+            // Album queues have one unique parentRatingKey; playlist queues span multiple albums.
+            // sourceURI is a secondary signal for single-album playlists (rare edge case).
+            const tracks = doc.querySelectorAll('Track');
+            const albumKeys = new Set();
+            tracks.forEach(t => {
+                const pk = t.getAttribute('parentRatingKey');
+                if (pk) albumKeys.add(pk);
+            });
+            const isPlaylistQueue = albumKeys.size > 1 || sourceURI.toLowerCase().includes('playlist');
+
+            return { position: offset + 1, total, isPlaylistQueue };
         } catch (error) {
             logger.error(`Failed to fetch play queue: ${error.message}`);
             return null;
@@ -524,6 +563,43 @@ class PlexConnection {
         } catch (error) {
             logger.error(`Failed to fetch playlists: ${error.message}`);
             throw error;
+        }
+    }
+
+    /**
+     * Fetch all items from an existing playQueue and identify the selected item.
+     * Returns { selectedItemID, items: [{playQueueItemID, parentRatingKey, key}] }
+     * Used by skipToNextAlbum to locate the first track of the next album.
+     */
+    async fetchPlayQueueItems(containerKey) {
+        if (!this.serverUrl || !this.token) return null;
+
+        // window=10000 ensures we receive the full queue rather than only the
+        // default windowed page (~50 items centred on the current track), which
+        // would cause large albums to hide the next album's tracks from view.
+        const url = `${this.serverUrl}${containerKey}?window=10000`;
+
+        try {
+            const response = await fetch(url, { headers: this.createHeaders(true) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const container = doc.querySelector('MediaContainer');
+            if (!container) return null;
+
+            const selectedItemID = container.getAttribute('playQueueSelectedItemID');
+            const items = Array.from(doc.querySelectorAll('Track')).map(track => ({
+                playQueueItemID: track.getAttribute('playQueueItemID'),
+                parentRatingKey: track.getAttribute('parentRatingKey'),
+                key: track.getAttribute('key')
+            }));
+
+            return { selectedItemID, items };
+        } catch (error) {
+            logger.error(`Failed to fetch play queue items: ${error.message}`);
+            return null;
         }
     }
 

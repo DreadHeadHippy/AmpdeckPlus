@@ -6,7 +6,7 @@
   "Name": "Ampdeck+",
   "Icon": "imgs/plugin-icon",
   "URL": "https://github.com/DreadHeadHippy/Ampdeckplus",
-  "Version": "2.0.11.0",
+  "Version": "2.0.12.0",
   "Category": "Ampdeck+",
   "CategoryIcon": "imgs/category-icon",
   "OS": [
@@ -104,6 +104,34 @@
       "PropertyInspectorPath": "pi.html"
     },
     {
+      "Icon": "imgs/prev-album-icon",
+      "Name": "Previous Album",
+      "States": [
+        {
+          "Image": "imgs/prev-album-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Skip to the first track of the previous album in the current playlist queue",
+      "UUID": "com.dreadheadhippy.ampdeckplus.prev-album",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/skip-album-icon",
+      "Name": "Next Album",
+      "States": [
+        {
+          "Image": "imgs/skip-album-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Skip to the first track of the next album in the current playlist queue",
+      "UUID": "com.dreadheadhippy.ampdeckplus.skip-album",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
       "Icon": "imgs/info-icon",
       "Name": "Track Info",
       "States": [
@@ -171,6 +199,20 @@
       "SupportedInMultiActions": true,
       "Tooltip": "Cycle repeat: Off → All → One",
       "UUID": "com.dreadheadhippy.ampdeckplus.repeat",
+      "PropertyInspectorPath": "pi.html"
+    },
+    {
+      "Icon": "imgs/track-title-icon",
+      "Name": "Track Title",
+      "States": [
+        {
+          "Image": "imgs/track-title-icon",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows the current track title.",
+      "UUID": "com.dreadheadhippy.ampdeckplus.track-title",
       "PropertyInspectorPath": "pi.html"
     },
     {

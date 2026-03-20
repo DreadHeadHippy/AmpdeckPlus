@@ -231,21 +231,69 @@ function onKeyDown(data) {
         // Capture the exact holdState object created above so a later rapid press
         // can't be mistaken for this one when the timeout fires.
         const thisHoldState = state.buttonHoldState[context];
-        setTimeout(() => {
+        setTimeout(async () => {
             const holdState = state.buttonHoldState[context];
             // Bail if the hold state is gone or belongs to a different press
             if (!holdState || holdState !== thisHoldState || holdState.didMute) return;
             holdState.didMute = true;
 
             if (state.muteRestoreVolume !== null) {
-                // Already muted — restore
+                // Already muted/faded — restore volume then resume playback
+                state.activeFadeTimer = null;   // generation mismatch stops any in-progress async fade
+                state.activeFadeContext = null;
                 const restoreVol = state.muteRestoreVolume;
                 state.muteRestoreVolume = null;
-                playbackController.setVolume(restoreVol);
+                await playbackController.setVolume(restoreVol);
+                await playbackController.play();
             } else {
-                // Mute — save current volume then go to 0
+                // Save current volume as restore target
                 state.muteRestoreVolume = state.currentVolume > 0 ? state.currentVolume : 50;
-                playbackController.setVolume(0);
+
+                const settings = state.getActionSettings(context) || {};
+                if (settings.fadeOut) {
+                    // Fade-out mode: time-based interpolation with fire-and-forget setVolume
+                    // so the fade duration is not subject to network round-trip latency.
+                    // A generation counter lets cancellation work safely across awaits.
+                    const gen = Date.now();
+                    state.activeFadeTimer = gen;
+                    state.activeFadeContext = context;
+
+                    const fadeStartVolume = state.currentVolume;
+                    const fadeStartTime = Date.now();
+                    const fadeDurationMs = settings.fadeDuration != null && settings.fadeDuration >= 1
+                        ? settings.fadeDuration * 1000
+                        : VOLUME.FADE_DURATION;
+
+                    const doFadeTick = async () => {
+                        if (state.activeFadeTimer !== gen) return; // cancelled
+                        const elapsed = Date.now() - fadeStartTime;
+                        const progress = Math.min(elapsed / fadeDurationMs, 1);
+                        const newVolume = Math.max(0, Math.round(fadeStartVolume * (1 - progress)));
+                        if (newVolume <= 0 || progress >= 1) {
+                            // Final step: await for reliable ordering before pause
+                            await playbackController.setVolume(0);
+                            if (state.activeFadeTimer !== gen) return; // cancelled during await
+                            state.activeFadeTimer = null;
+                            state.activeFadeContext = null;
+                            await playbackController.pause();
+                            updateDisplay(context); // clear FADING label
+                            return;
+                        }
+                        // Await so the local player never receives concurrent requests.
+                        // After the await, subtract time already spent so the next tick
+                        // fires at roughly FADE_INTERVAL ms after this one started.
+                        const tickStart = Date.now();
+                        await playbackController.setVolume(newVolume);
+                        if (state.activeFadeTimer !== gen) return; // cancelled during await
+                        const remaining = Math.max(0, VOLUME.FADE_INTERVAL - (Date.now() - tickStart));
+                        setTimeout(doFadeTick, remaining);
+                    };
+                    doFadeTick();
+                } else {
+                    // Instant mute — go to 0 then pause
+                    await playbackController.setVolume(0);
+                    await playbackController.pause();
+                }
             }
         }, TIMING.HOLD_THRESHOLD);
     }
@@ -332,13 +380,23 @@ function onKeyUp(data) {
         holdState.isHolding = false;
     }
     
+    // While muted/held, a short press on Volume Down must not corrupt the restore target.
+    // Treat it as a no-op so only a long-press can restore.
+    if (action === ACTIONS.VOLUME_DOWN && state.muteRestoreVolume !== null && !holdState.didMute) {
+        delete state.buttonHoldState[context];
+        return;
+    }
+
     // If we were seeking or muting, don't also fire the tap action
     if (holdState.didSeek || holdState.didMute) {
-        // Reset button to normal state
+        // Reset button to normal state immediately so the display reflects the
+        // post-action volume rather than whatever was cached before the hold.
         if (action === ACTIONS.PREVIOUS) {
             buttonRenderer.renderPrevious(context);
         } else if (action === ACTIONS.NEXT) {
             buttonRenderer.renderNext(context);
+        } else if (action === ACTIONS.VOLUME_DOWN) {
+            buttonRenderer.renderVolumeDown(context);
         }
         delete state.buttonHoldState[context];
         return;
@@ -567,15 +625,28 @@ async function handleButtonAction(action, context) {
             state.toggleTimeDisplayMode(context);
             logger.debug(`Time display mode toggled to: ${state.getTimeDisplayMode(context)}`);
             break;
+        case ACTIONS.TRACK_TITLE:
+            // No tap action for track title button
+            break;
+        case ACTIONS.SKIP_ALBUM:
+            await playbackController.skipToNextAlbum();
+            break;
+        case ACTIONS.PREV_ALBUM:
+            await playbackController.skipToPrevAlbum();
+            break;
         case ACTIONS.VOLUME_UP: {
-            // Clear mute state — user is taking manual control
+            // Clear mute/fade state — user is taking manual control
+            state.activeFadeTimer = null;   // generation mismatch cancels any async fade
+            state.activeFadeContext = null;
             state.muteRestoreVolume = null;
             const newVol = Math.min(VOLUME.MAX, state.currentVolume + VOLUME.STEP);
             await playbackController.setVolume(newVol);
             break;
         }
         case ACTIONS.VOLUME_DOWN: {
-            // Clear mute state — user is taking manual control
+            // Clear mute/fade state — user is taking manual control
+            state.activeFadeTimer = null;   // generation mismatch cancels any async fade
+            state.activeFadeContext = null;
             state.muteRestoreVolume = null;
             const newVol = Math.max(VOLUME.MIN, state.currentVolume - VOLUME.STEP);
             await playbackController.setVolume(newVol);
@@ -815,6 +886,15 @@ function updateDisplay(context) {
             break;
         case ACTIONS.PLAYLIST:
             buttonRenderer.renderPlaylist(context);
+            break;
+        case ACTIONS.TRACK_TITLE:
+            buttonRenderer.renderTrackTitle(context);
+            break;
+        case ACTIONS.SKIP_ALBUM:
+            buttonRenderer.renderSkipAlbum(context);
+            break;
+        case ACTIONS.PREV_ALBUM:
+            buttonRenderer.renderPrevAlbum(context);
             break;
     }
 }

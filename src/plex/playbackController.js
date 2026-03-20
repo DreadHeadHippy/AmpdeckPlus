@@ -159,18 +159,26 @@ class PlaybackController {
      */
     async toggleShuffle() {
         const newShuffle = state.currentShuffle ? 0 : 1;
-        
+
+        // setParameters tells the local player to flip its shuffle flag (works for playlists
+        // and other clients). For album queues Plexamp ignores this and instead expects the
+        // server-side playQueue to be reordered via a PUT — which triggers a server notification
+        // that makes Plexamp reload the queue in the new order. We do both.
         try {
             await plexConnection.playerCommand(
                 '/player/playback/setParameters',
                 `shuffle=${newShuffle}`
             );
-            
-            state.currentShuffle = newShuffle;
-            logger.debug(`Shuffle ${newShuffle ? 'enabled' : 'disabled'}`);
         } catch (error) {
-            logger.error(`Failed to toggle shuffle: ${error.message}`);
+            logger.warn(`setParameters shuffle failed: ${error.message}`);
         }
+
+        if (state.currentContainerKey) {
+            await plexConnection.updatePlayQueueShuffle(state.currentContainerKey, newShuffle);
+        }
+
+        state.currentShuffle = newShuffle;
+        logger.debug(`Shuffle ${newShuffle ? 'enabled' : 'disabled'}`);
     }
 
     /**
@@ -235,6 +243,97 @@ class PlaybackController {
         );
         
         await this.setRating(newRating);
+    }
+
+    /**
+     * Skip to the first track of the next album in the current playQueue.
+     * Works when playing any playlist or album queue; silently no-ops if already
+     * on the last album or not playing from a playQueue.
+     */
+    async skipToNextAlbum() {
+        const containerKey = state.currentContainerKey;
+
+        if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+            logger.warn('Skip album: not playing from a play queue');
+            return;
+        }
+
+        try {
+            const queue = await plexConnection.fetchPlayQueueItems(containerKey);
+            if (!queue || !queue.items.length) return;
+
+            const { selectedItemID, items } = queue;
+
+            const currentIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+            if (currentIdx === -1) return;
+
+            // Derive the current album from the queue snapshot — not from state.currentTrack,
+            // which may be stale (async metadata fetch). This ensures both the queue position
+            // and the album key come from the same consistent response.
+            const currentAlbumKey = items[currentIdx].parentRatingKey;
+            if (!currentAlbumKey) return;
+
+            const nextItem = items.slice(currentIdx + 1).find(i => i.parentRatingKey !== currentAlbumKey);
+            if (!nextItem) {
+                logger.debug('Skip album: already on the last album in queue');
+                return;
+            }
+
+            await plexConnection.playerCommand(
+                '/player/playback/skipTo',
+                { key: nextItem.key, playQueueItemID: nextItem.playQueueItemID }
+            );
+            logger.info(`Skipped to next album (playQueueItemID: ${nextItem.playQueueItemID})`);
+        } catch (error) {
+            logger.error(`Failed to skip to next album: ${error.message}`);
+        }
+    }
+
+    /**
+     * Skip to the first track of the previous album in the current playQueue.
+     * Walks backward from the current position to find the first track of the
+     * album before the current one. No-ops if already on the first album.
+     */
+    async skipToPrevAlbum() {
+        const containerKey = state.currentContainerKey;
+
+        if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+            logger.warn('Prev album: not playing from a play queue');
+            return;
+        }
+
+        try {
+            const queue = await plexConnection.fetchPlayQueueItems(containerKey);
+            if (!queue || !queue.items.length) return;
+
+            const { selectedItemID, items } = queue;
+
+            const currentIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+            if (currentIdx === -1) return;
+
+            // Derive the current album from the queue snapshot (same reasoning as skipToNextAlbum).
+            const currentAlbumKey = items[currentIdx].parentRatingKey;
+            if (!currentAlbumKey) return;
+
+            // Walk backward to find an item belonging to a different (earlier) album,
+            // then jump to the very first track of that album.
+            const prevItem = items.slice(0, currentIdx).reverse().find(i => i.parentRatingKey !== currentAlbumKey);
+            if (!prevItem) {
+                logger.debug('Prev album: already on the first album in queue');
+                return;
+            }
+
+            const firstTrack = items.find(i => i.parentRatingKey === prevItem.parentRatingKey);
+            if (!firstTrack) return;
+
+            await plexConnection.playerCommand(
+                '/player/playback/skipTo',
+                { key: firstTrack.key, playQueueItemID: firstTrack.playQueueItemID }
+            );
+            logger.info(`Skipped to previous album (playQueueItemID: ${firstTrack.playQueueItemID})`);
+        } catch (error) {
+            logger.error(`Failed to skip to previous album: ${error.message}`);
+        }
     }
 
     /**
