@@ -13,8 +13,8 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 </p>
 
 <p align="center">
-  
-![Ampdeck+ Demo](assets/streamdeck-overview.mp4)
+
+https://github.com/user-attachments/assets/76d1f666-cce1-4ac8-8728-0d5c07d38dbd
 
 </p>
 
