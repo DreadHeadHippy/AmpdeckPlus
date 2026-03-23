@@ -14,7 +14,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 <p align="center">
 
-https://github.com/user-attachments/assets/1c15f9e5-a5f7-44d7-b85b-021a6399c92b
+<https://github.com/user-attachments/assets/1c15f9e5-a5f7-44d7-b85b-021a6399c92b>
 
 </p>
 
@@ -29,16 +29,9 @@ https://github.com/user-attachments/assets/1c15f9e5-a5f7-44d7-b85b-021a6399c92b
 
 ---
 
-## ⚡ What's New in v2.0.12
+## ⚡ What's New in v2.0.13
 
-- **✨ Track Title button** — New button showing the current track title in large auto-sized, word-wrapped text (up to 3 lines).
-- **✨ Next Album / Previous Album buttons** — Skip forward or back a whole album within a playlist queue. Perfect for playlist listeners who browse by album.
-- **✨ Fade Out on hold-to-mute** — Enable **"Fade Out on hold-to-mute"** in the Volume Down button settings. When on, holding the button fades the volume to 0 before pausing — perfect for streaming. Hold again to restore the original volume and resume playback. Fade duration is configurable from 1–30 seconds (default: 3s).
-- **✨ Hold-to-mute now pauses & resumes** — Even without Fade Out enabled, holding Volume Down to mute now pauses playback automatically, and holding again restores volume and resumes.
-- **🎨 Previous / Next sidebar icons** — The action picker icons for Previous and Next now match the double-triangle icons drawn on the buttons at runtime.
-- **🐛 Track Info now shows the right track number no matter how you're listening** — Playing an album (shuffled or not) shows the track's real position on that album, just like Plexamp does. Playing a playlist (shuffled or not) shows where you are in the playlist. The plugin figures out which type of queue you're in automatically.
-- **🐛 Volume button no longer visually resets while muted** — The volume button's accent fill no longer snaps back to the pre-mute level a few seconds after muting.
-- **🐛 Short-pressing Volume Down while muted no longer breaks volume restore** — Tapping Volume Down while the player was muted (via hold-to-mute) could cause volume to snap back to 50% instead of what it was before. It's now a no-op while muted so the original volume always restores correctly.
+- **✨ "Show TITLE Label" toggle** — The Track Title button now has a checkbox in its settings to show or hide the "TITLE" label. When hidden, the track title expands to fill the full button space evenly.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 

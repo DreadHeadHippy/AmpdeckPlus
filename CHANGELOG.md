@@ -4,6 +4,13 @@
 
 ---
 
+## [2.0.13] - 2026-03-23
+
+### ✨ New Features
+- **"Show TITLE Label" toggle on Track Title button** — The Track Title button's Property Inspector now has a **"Show 'TITLE' Label"** checkbox. When unchecked, the "TITLE" header is hidden and the track title expands to use the full button space, centred evenly. The checkbox is checked by default, preserving the existing layout for existing users.
+
+---
+
 ## [2.0.12] - 2026-03-18
 
 ### ✨ New Features

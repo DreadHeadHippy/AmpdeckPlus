@@ -342,6 +342,15 @@
         </div>
     </div>
 
+    <div id="trackTitleSettings" style="display: none;">
+        <div class="sdpi-heading">Track Title Button Settings</div>
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="showTitleLabel" checked>
+            <label for="showTitleLabel">Show "TITLE" Label</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When unchecked, the track title uses the full button space evenly without the "TITLE" label</div>
+    </div>
+
     <!-- Advanced Settings (Manual Configuration) -->
     <div class="sdpi-heading collapse-toggle" id="advancedToggle">Advanced Settings</div>
     <div class="collapsible-content" id="advancedContent">
@@ -1091,6 +1100,12 @@
                 document.getElementById('fadeDuration').value = storedDuration;
                 document.getElementById('fadeDurationRow').style.display = settings.fadeOut === true ? 'block' : 'none';
             }
+
+            // Show track title settings
+            if (actionUUID === 'com.dreadheadhippy.ampdeckplus.track-title') {
+                document.getElementById('trackTitleSettings').style.display = 'block';
+                document.getElementById('showTitleLabel').checked = settings.showTitleLabel !== false;
+            }
             
             document.getElementById('textColor').value = settings.textColor || '#FFFFFF';
             document.getElementById('dynamicColors').checked = settings.dynamicColors !== false;
@@ -1314,6 +1329,10 @@
                 settings.fadeDuration = isNaN(durVal) || durVal < 1 ? 3 : Math.min(durVal, 30);
             }
 
+            if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.track-title') {
+                settings.showTitleLabel = document.getElementById('showTitleLabel').checked;
+            }
+
             if (websocket && websocket.readyState === WebSocket.OPEN) {
                 websocket.send(JSON.stringify({
                     event: 'setSettings',
@@ -1361,6 +1380,7 @@
             saveSettings();
         });
         document.getElementById('fadeDuration').addEventListener('change', saveSettings);
+        document.getElementById('showTitleLabel').addEventListener('change', saveSettings);
 
         // Load Playlists from Plex server
         async function loadPlaylists(serverUrl, token, silent) {

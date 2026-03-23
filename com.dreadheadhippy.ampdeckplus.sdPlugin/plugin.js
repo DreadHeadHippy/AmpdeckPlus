@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.12';
+    const VERSION = '2.0.13';
 
     // Action identifiers
     const ACTIONS = {
@@ -2877,7 +2877,7 @@
      * Render track title button.
      *
      * Layout (144×144, symmetrical gaps):
-     *   "TITLE" label  — textColor, 22px bold
+     *   "TITLE" label  — textColor, 22px bold (optional via settings)
      *   Track title    — accentColor, auto-sized 14–36px bold, 1-line or 2-line word-wrap
      */
     function renderTrackTitle(context) {
@@ -2887,6 +2887,9 @@
 
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, S, S);
+
+        const settings = state.getActionSettings(context) || {};
+        const showTitleLabel = settings.showTitleLabel !== false; // default to true
 
         const isDimmed    = state.playbackState === 'stopped';
         const textColor   = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
@@ -2902,11 +2905,13 @@
             return;
         }
 
-        // "TITLE" label — identical style to "RATING" / "TRACK" on sibling buttons
-        ctx.textAlign = 'center';
-        ctx.font      = 'bold 26px sans-serif';
-        ctx.fillStyle = textColor;
-        ctx.fillText('TITLE', S / 2, 32); // alphabetic baseline at 32, matches Rating/Info
+        // "TITLE" label — optional, identical style to "RATING" / "TRACK" on sibling buttons
+        if (showTitleLabel) {
+            ctx.textAlign = 'center';
+            ctx.font      = 'bold 26px sans-serif';
+            ctx.fillStyle = textColor;
+            ctx.fillText('TITLE', S / 2, 32); // alphabetic baseline at 32, matches Rating/Info
+        }
 
         const title       = state.currentTrack.title || 'Unknown Title';
         const maxTitleFt  = 52;
@@ -2915,10 +2920,18 @@
         const maxW        = S - 16; // 8px padding each side
         const words       = title.split(' ');
 
-        // Content area sits below the label (label baseline 32 + ~8px descender gap = 40)
-        // leaving 144 - 40 - 8 = 96px tall content zone, centred at y=92
-        const contentCY = 92;
-        const contentH  = 96;
+        // Content area depends on whether label is shown
+        let contentCY, contentH;
+        if (showTitleLabel) {
+            // Content area sits below the label (label baseline 32 + ~8px descender gap = 40)
+            // leaving 144 - 40 - 8 = 96px tall content zone, centred at y=92
+            contentCY = 92;
+            contentH  = 96;
+        } else {
+            // Use the full button space evenly, centred
+            contentCY = S / 2;  // 72
+            contentH  = S - 16; // 128 (8px padding top and bottom)
+        }
 
         // ── Find largest font where title fits into contentH (1, 2, or 3 lines) ──
         let titleFont, titleLines, titleBlockH;
