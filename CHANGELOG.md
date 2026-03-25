@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### ✨ New Features
+- **Queue (Up Next) browser on touch strip** — New `Queue (Up Next)` display mode for the Stream Deck+ touch strip tile. Shows the next 3 upcoming tracks as a scrollable text list with title and artist. Rotate the dial to scroll the cursor, press the dial to remove the focused track from the queue. The very next track (index 0) is un-kickable (Plexamp pre-buffers it) and is visually marked with a ▶ prefix and a muted highlight to make this clear.
+- **Toggle Queue / Playlist with touch** — When the strip tile is set to "Playlists (Carousel)", a new **"Toggle Queue / Playlist with touch"** checkbox appears in the Property Inspector. When enabled, tapping the touch strip switches the tile between the playlist carousel and the Up Next queue view. Tap again to switch back. The dial continues to work correctly in whichever view is active.
+
+### 🎨 Visual Polish
+- **Progress bar pinned to the bottom edge on all strip modes** — The progress bar is now fixed at y=96 (4px from the bottom) across Artist, Album, Track Title, Time, Playlist (text), and Playlist (3-Up Poster) modes, matching the Queue layout. Content (label + text) re-centres in the space above using three equal gaps.
+
 ---
 
 ## [2.0.14] - 2026-03-24
