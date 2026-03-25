@@ -437,10 +437,12 @@ function onDialRotate(data) {
         if (ticks > 0) {
             playbackController.skipNext();
             setTimeout(pollTimeline, 300);
+            setTimeout(pollTimeline, 700);
             layoutManager.showStripOverlay(context, 'NEXT', '▶▶');
         } else if (ticks < 0) {
             playbackController.skipPrevious();
             setTimeout(pollTimeline, 300);
+            setTimeout(pollTimeline, 700);
             layoutManager.showStripOverlay(context, 'PREVIOUS', '◀◀');
         }
     } else if (dialAction === 'volume') {
@@ -562,10 +564,12 @@ async function handleButtonAction(action, context) {
         case ACTIONS.NEXT:
             await playbackController.skipNext();
             setTimeout(pollTimeline, 300);
+            setTimeout(pollTimeline, 700);
             break;
         case ACTIONS.PREVIOUS:
             await playbackController.skipPrevious();
             setTimeout(pollTimeline, 300);
+            setTimeout(pollTimeline, 700);
             break;
         case ACTIONS.SHUFFLE:
             await playbackController.toggleShuffle();

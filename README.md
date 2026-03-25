@@ -29,9 +29,10 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.13
+## ⚡ What's New in v2.0.14
 
-- **✨ "Show TITLE Label" toggle** — The Track Title button now has a checkbox in its settings to show or hide the "TITLE" label. When hidden, the track title expands to fill the full button space evenly.
+- **⚡ Near-instant album art after skipping** — Album art, accent color, and supporting metadata now load in parallel rather than sequentially, cutting post-skip load time from ~4 seconds to under a second.
+- **⚡ Smaller art downloads** — Art is fetched at the button's native resolution (144×144px) via Plex's photo transcoder, reducing image download size by up to 95%.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 

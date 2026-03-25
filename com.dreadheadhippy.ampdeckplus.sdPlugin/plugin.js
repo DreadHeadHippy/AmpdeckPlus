@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.13';
+    const VERSION = '2.0.14';
 
     // Action identifiers
     const ACTIONS = {
@@ -1012,12 +1012,14 @@
 
         /**
          * Fetch album art
+         * Requests via Plex photo transcoder at button-native resolution to minimise download size.
          */
-        async fetchAlbumArt(thumbPath, serverUrl = null, token = null) {
-            const url = `${serverUrl || this.serverUrl}${thumbPath}`;
+        async fetchAlbumArt(thumbPath, serverUrl = null, token = null, size = CANVAS.BUTTON_SIZE) {
+            const baseUrl = serverUrl || this.serverUrl;
+            const url = `${baseUrl}/photo/:/transcode?width=${size}&height=${size}&url=${encodeURIComponent(thumbPath)}&minSize=1`;
             const authToken = token || this.token;
 
-            logger.debug(`Fetching album art: ${thumbPath}`);
+            logger.debug(`Fetching album art: ${thumbPath} at ${size}x${size}`);
 
             try {
                 const response = await fetch(url, {
@@ -1802,32 +1804,37 @@
                     logger.debug(`Rating from metadata: ${incomingRating}`);
                 }
 
-                // Load album track count if needed
-                if (metadata.parentRatingKey && 
-                    metadata.parentRatingKey !== state.lastParentRatingKey) {
-                    
-                    state.lastParentRatingKey = metadata.parentRatingKey;
-                    const count = await plexConnection.fetchAlbumTrackCount(metadata.parentRatingKey);
-                    state.albumTrackCount = count;
-                }
+                // Determine what needs fetching
+                const artPath = metadata.thumb || metadata.parentThumb || metadata.grandparentThumb;
+                const artChanged = artPath && artPath !== state.lastArtPath;
+                if (artChanged) state.lastArtPath = artPath;
 
-                // Load queue position if playing from a playQueue (playlist)
-                if (timelineData.containerKey?.startsWith('/playQueues/')) {
-                    const queueInfo = await plexConnection.fetchPlayQueue(timelineData.containerKey);
-                    state.queuePosition = queueInfo?.position ?? null;
-                    state.queueTotal = queueInfo?.total ?? null;
-                    state.playQueueIsPlaylist = queueInfo?.isPlaylistQueue ?? false;
-                } else {
+                const albumChanged = metadata.parentRatingKey &&
+                    metadata.parentRatingKey !== state.lastParentRatingKey;
+                if (albumChanged) state.lastParentRatingKey = metadata.parentRatingKey;
+
+                const inPlayQueue = timelineData.containerKey?.startsWith('/playQueues/');
+                if (!inPlayQueue) {
                     state.queuePosition = null;
                     state.queueTotal = null;
                     state.playQueueIsPlaylist = false;
                 }
 
-                // Load album art if changed
-                const artPath = metadata.thumb || metadata.parentThumb || metadata.grandparentThumb;
-                if (artPath && artPath !== state.lastArtPath) {
-                    state.lastArtPath = artPath;
-                    await this.loadAlbumArt(artPath);
+                // Run art, track count, and queue fetches in parallel — previously sequential
+                const [, countResult, queueResult] = await Promise.allSettled([
+                    artChanged ? this.loadAlbumArt(artPath) : Promise.resolve(),
+                    albumChanged ? plexConnection.fetchAlbumTrackCount(metadata.parentRatingKey) : Promise.resolve(null),
+                    inPlayQueue ? plexConnection.fetchPlayQueue(timelineData.containerKey) : Promise.resolve(null)
+                ]);
+
+                if (countResult.status === 'fulfilled' && countResult.value !== null) {
+                    state.albumTrackCount = countResult.value;
+                }
+
+                if (queueResult.status === 'fulfilled' && queueResult.value !== null) {
+                    state.queuePosition = queueResult.value?.position ?? null;
+                    state.queueTotal = queueResult.value?.total ?? null;
+                    state.playQueueIsPlaylist = queueResult.value?.isPlaylistQueue ?? false;
                 }
 
             } catch (error) {
@@ -4250,10 +4257,12 @@
             if (ticks > 0) {
                 playbackController.skipNext();
                 setTimeout(pollTimeline, 300);
+                setTimeout(pollTimeline, 700);
                 layoutManager.showStripOverlay(context, 'NEXT', '▶▶');
             } else if (ticks < 0) {
                 playbackController.skipPrevious();
                 setTimeout(pollTimeline, 300);
+                setTimeout(pollTimeline, 700);
                 layoutManager.showStripOverlay(context, 'PREVIOUS', '◀◀');
             }
         } else if (dialAction === 'volume') {
@@ -4375,10 +4384,12 @@
             case ACTIONS.NEXT:
                 await playbackController.skipNext();
                 setTimeout(pollTimeline, 300);
+                setTimeout(pollTimeline, 700);
                 break;
             case ACTIONS.PREVIOUS:
                 await playbackController.skipPrevious();
                 setTimeout(pollTimeline, 300);
+                setTimeout(pollTimeline, 700);
                 break;
             case ACTIONS.SHUFFLE:
                 await playbackController.toggleShuffle();

@@ -4,6 +4,15 @@
 
 ---
 
+## [2.0.14] - 2026-03-24
+
+### ⚡ Performance
+- **Near-instant album art and accent color after track skip** — Album art, accent color, and queue/track-count data now load in parallel instead of sequentially. Previously, fetching the track count, play queue position, and album art were chained one after another, adding 400–1000ms of unnecessary wait time. All three now fire simultaneously and finish in the time of the slowest request alone.
+- **Reduced skip detection latency** — After pressing Next or Previous (button or dial), two timeline polls are now scheduled (at 300ms and 700ms) instead of one. The second poll acts as a fallback for cases where Plexamp takes slightly longer to register the track change, preventing the detection from falling all the way back to the regular 1-second poll interval.
+- **Smaller album art downloads** — Album art is now requested via Plex's photo transcoder at the button's native resolution (144×144px) rather than downloading the full-size image. Plex resizes server-side so only the pixels that are actually used are transferred, reducing image download size by up to 95%.
+
+---
+
 ## [2.0.13] - 2026-03-23
 
 ### ✨ New Features

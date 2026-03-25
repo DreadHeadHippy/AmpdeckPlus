@@ -3,7 +3,7 @@
  * Handles communication with Plex player (local) and server (remote)
  */ 
 
-import { PLEX } from '../core/constants.js';
+import { PLEX, CANVAS } from '../core/constants.js';
 import state from '../core/stateManager.js';
 import logger from '../utils/logger.js';
 
@@ -339,12 +339,14 @@ class PlexConnection {
 
     /**
      * Fetch album art
+     * Requests via Plex photo transcoder at button-native resolution to minimise download size.
      */
-    async fetchAlbumArt(thumbPath, serverUrl = null, token = null) {
-        const url = `${serverUrl || this.serverUrl}${thumbPath}`;
+    async fetchAlbumArt(thumbPath, serverUrl = null, token = null, size = CANVAS.BUTTON_SIZE) {
+        const baseUrl = serverUrl || this.serverUrl;
+        const url = `${baseUrl}/photo/:/transcode?width=${size}&height=${size}&url=${encodeURIComponent(thumbPath)}&minSize=1`;
         const authToken = token || this.token;
 
-        logger.debug(`Fetching album art: ${thumbPath}`);
+        logger.debug(`Fetching album art: ${thumbPath} at ${size}x${size}`);
 
         try {
             const response = await fetch(url, {
