@@ -32,7 +32,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ## ✨ What's New in v2.0.15
 
 - **Queue (Up Next) browser** — See your next 3 upcoming tracks on the touch strip. Rotate the dial to scroll, press to remove a track from the queue.
-- **Toggle Queue / Playlist with touch** — Tap the strip to flip between the playlist carousel and the queue view and back again.
+- **Toggle Queue / Playlist with touch** — Enable the checkbox in the Playlist Carousel settings to let a tap on the strip flip between the carousel and the queue view and back again.
 - **Star ratings in queue rows** — Each queue row shows the track's star rating in the accent color. Configurable format: half stars, full stars, single-star toggle, or none.
 - **Logarithmic fade curve** — The Volume Down hold-to-mute fade now sounds natural rather than mechanical, dropping quickly at first and easing toward silence.
 - **Progress bar consistent across all strip modes** — The playlist carousel now matches the queue and text strip exactly (y=95, 5px).
