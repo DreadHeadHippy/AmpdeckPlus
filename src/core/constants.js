@@ -54,7 +54,8 @@ export const VOLUME = {
     MIN: 0,
     MAX: 100,
     FADE_DURATION: 3000,           // Total fade-out duration in ms (100 → 0)
-    FADE_INTERVAL: 150             // Target ms per tick; actual gap = max(0, interval - Plex latency)
+    FADE_INTERVAL: 16,             // Minimum ms between serial doFadeTick calls (≈ 60fps poll)
+    FADE_TIMEOUT_MS: 200           // Abort each fade HTTP call after this many ms and move on
 };
 
 // Rating

@@ -55,7 +55,8 @@
         MIN: 0,
         MAX: 100,
         FADE_DURATION: 3000,           // Total fade-out duration in ms (100 → 0)
-        FADE_INTERVAL: 150             // Target ms per tick; actual gap = max(0, interval - Plex latency)
+        FADE_INTERVAL: 16,             // Minimum ms between serial doFadeTick calls (≈ 60fps poll)
+        FADE_TIMEOUT_MS: 200           // Abort each fade HTTP call after this many ms and move on
     };
 
     // Rating
@@ -425,6 +426,20 @@
             this.carouselState = {};     // context -> { playlists: [], index: 0 }
             this.dialHoldState = {};     // context -> { pressTime, didLongPress }
             this.currentPlaylistName = null; // Name of the playlist currently playing (set by us)
+
+            // Queue browser state (per dial context)
+            this.queueBrowserState = {}; // context -> { items: [], cursorIndex: 0 }
+
+            // Flag: queue items were kicked since the last track change.
+            // Used to trigger a playMedia re-sync on the next track change so Plexamp
+            // re-reads the queue with the new track as anchor and plans correct next-track.
+            this.hadRecentKicks = false;
+            // When the pre-buffered next track (index 0) is kicked, store the key of the
+            // track that should become the new next song so playMedia can jump straight to it.
+            this.kickedNextTrackKey = null;
+
+            // Runtime display mode override (touch-toggle between playlists and queue)
+            this.activeDisplayMode = {}; // context -> 'queue' | null
         }
 
         // Action management
@@ -441,6 +456,8 @@
             delete this.timeDisplayMode[context];
             delete this.carouselState[context];
             delete this.dialHoldState[context];
+            delete this.queueBrowserState[context];
+            delete this.activeDisplayMode[context];
         }
 
         getAction(context) {
@@ -565,6 +582,32 @@
 
         clearCarouselState(context) {
             delete this.carouselState[context];
+        }
+
+        // Queue browser state
+        getQueueBrowserState(context) {
+            return this.queueBrowserState[context] || null;
+        }
+
+        setQueueBrowserState(context, data) {
+            this.queueBrowserState[context] = data;
+        }
+
+        clearQueueBrowserState(context) {
+            delete this.queueBrowserState[context];
+        }
+
+        // Runtime active display mode (touch-toggle override)
+        getActiveDisplayMode(context) {
+            return this.activeDisplayMode[context] || null;
+        }
+
+        setActiveDisplayMode(context, mode) {
+            this.activeDisplayMode[context] = mode;
+        }
+
+        clearActiveDisplayMode(context) {
+            delete this.activeDisplayMode[context];
         }
 
         // Time display mode
@@ -747,7 +790,7 @@
          * @param {object|null} extraParams
          * @param {number} timeoutMs - timeout for the player request (default 1000)
          */
-        async playerCommand(path, extraParams = null, timeoutMs = 1000) {
+        async playerCommand(path, extraParams = null, timeoutMs = 1000, noFallback = false) {
             // Prevent commands when not configured (signed out)
             if (!this.isConfigured()) {
                 logger.debug('Player command blocked: not configured');
@@ -792,6 +835,12 @@
                 if (path.includes('playMedia')) {
                     logger.error(`playMedia command failed: ${error.message}`);
                     throw error;
+                }
+                if (noFallback) {
+                    // During fade: timeout is expected — Plexamp already applied the change
+                    // on receipt, we just don't need to wait for the HTTP confirmation.
+                    logger.debug(`Player command fade-abort (${path}): ${error.message}`);
+                    return null;
                 }
                 logger.warn(`Player command failed (${path}): ${error.message}, falling back to server`);
                 return this.serverCommand(path, extraParams);
@@ -1267,14 +1316,42 @@
                 const selectedItemID = container.getAttribute('playQueueSelectedItemID');
                 const items = Array.from(doc.querySelectorAll('Track')).map(track => ({
                     playQueueItemID: track.getAttribute('playQueueItemID'),
+                    ratingKey: track.getAttribute('ratingKey'),
                     parentRatingKey: track.getAttribute('parentRatingKey'),
-                    key: track.getAttribute('key')
+                    key: track.getAttribute('key'),
+                    title: track.getAttribute('title') || '',
+                    artist: track.getAttribute('grandparentTitle') || '',
+                    userRating: parseFloat(track.getAttribute('userRating')) || null
                 }));
 
                 return { selectedItemID, items };
             } catch (error) {
                 logger.error(`Failed to fetch play queue items: ${error.message}`);
                 return null;
+            }
+        }
+
+        /**
+         * Remove a single item from an existing playQueue on the server.
+         * @param {string} queueID  - numeric queue ID (from containerKey e.g. '/playQueues/12345')
+         * @param {string} playQueueItemID - the item's playQueueItemID
+         */
+        async removeFromQueue(queueID, playQueueItemID) {
+            if (!this.serverUrl || !this.token) return;
+
+            const url = `${this.serverUrl}/playQueues/${queueID}/items/${playQueueItemID}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: this.createHeaders(true),
+                    signal: AbortSignal.timeout(3000)
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                logger.debug(`Removed item ${playQueueItemID} from queue ${queueID}`);
+            } catch (error) {
+                logger.error(`Failed to remove from queue: ${error.message}`);
+                throw error;
             }
         }
 
@@ -1458,7 +1535,7 @@
         /**
          * Set volume
          */
-        async setVolume(level) {
+        async setVolume(level, timeoutMs = 1000, noFallback = false) {
             const volume = clamp(level, VOLUME.MIN, VOLUME.MAX);
             const previousVolume = state.currentVolume;
             
@@ -1469,7 +1546,9 @@
             try {
                 await plexConnection.playerCommand(
                     '/player/playback/setParameters',
-                    `volume=${volume}`
+                    `volume=${volume}`,
+                    timeoutMs,
+                    noFallback
                 );
                 logger.debug(`Volume set to ${volume}`);
             } catch (error) {
@@ -3186,7 +3265,7 @@
         if (state.getStripOverlay(context)) return;
 
         const settings = state.getActionSettings(context);
-        const displayMode = settings.displayMode || 'artist';
+        const displayMode = state.getActiveDisplayMode(context) || settings.displayMode || 'artist';
         const fontSize = parseInt(settings.fontSize) || 16;
         const totalPanels = parseInt(settings.progressTotalPanels) || 3;
         const position = parseInt(settings.progressPosition) || 1;
@@ -3200,6 +3279,8 @@
         let label = '', text = '';
         if (displayMode === 'playlists') {
             return renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary);
+        } else if (displayMode === 'queue') {
+            return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary);
         } else if (state.currentTrack) {
             if (displayMode === 'artist') {
                 label = 'ARTIST';
@@ -3227,18 +3308,15 @@
 
         // Always use pixmap for displayText for consistent rendering
         const textAreaH = fontSize + 8;
-        
-        // Calculate symmetrical spacing
-        const stripHeight = 100;
-        const progressBarHeight = 4;
         const labelHeight = labelSize + 4;
-        const contentHeight = labelHeight + textAreaH + progressBarHeight;
-        const totalGap = stripHeight - contentHeight;
-        const gap = totalGap / 4; // Equal spacing: top, between label & text, between text & progress, bottom
-        
+        const progressBarHeight = 5;
+
+        // Pin progress bar to the bottom (matching Queue mode)
+        const progressY = 95;
+        // 3 equal gaps: above label, between label & text, between text & bar
+        const gap = (progressY - labelHeight - textAreaH) / 3;
         const labelY = gap;
         const textY = gap + labelHeight + gap;
-        const progressY = textY + textAreaH + gap;
         
         const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
         
@@ -3291,6 +3369,221 @@
     }
 
     /**
+     * Render the "Up Next" queue browser: scrollable text list with focused row highlighted.
+     * Dial rotation moves the cursor; dial press removes the focused track from the queue.
+     */
+    function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary) {
+        const layoutKey = 'queue-browser';
+        if (state.lastLayoutState[context] !== layoutKey) {
+            state.lastLayoutState[context] = layoutKey;
+            setFeedbackLayout(context, {
+                id: 'com.dreadheadhippy.ampdeckplus.overlay',
+                items: [{ key: 'overlay', type: 'pixmap', rect: [0, 0, 200, 100] }]
+            });
+        }
+
+        const qbs           = state.getQueueBrowserState(context);
+        const isDimmed      = state.playbackState === 'stopped';
+        const effectiveAccent = isDimmed ? stripSecondary : accentColor;
+
+        const HEADER_H = 11;
+        const ROW_H    = 28;
+        const ROWS     = 3;
+        const BAR_H    = 5;
+        // Layout: 11 + 28×3 + 4 = 99px
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 200; canvas.height = 100;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, 200, 100);
+
+        // Header bar
+        ctx.fillStyle = isDimmed ? 'rgba(0,0,0,0.75)' : hexToRgba(effectiveAccent, 0.55);
+        ctx.fillRect(0, 0, 200, HEADER_H);
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textBaseline = 'middle';
+        const headerMid = HEADER_H / 2;
+        ctx.fillStyle = isDimmed ? stripSecondary : textColor;
+        ctx.textAlign = 'left';
+        ctx.fillText('UP NEXT', 4, headerMid);
+
+        const total       = qbs?.items?.length || 0;
+        const cursorIndex = qbs?.cursorIndex   || 0;
+        if (total > 0) {
+            ctx.fillStyle = isDimmed ? stripSecondary : textColor;
+            ctx.textAlign = 'right';
+            ctx.fillText(`${cursorIndex + 1} / ${total}`, 197, headerMid);
+        }
+
+        // Row area
+        if (!qbs || total === 0) {
+            ctx.fillStyle = stripSecondary;
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(qbs ? 'Queue is empty' : 'Loading\u2026', 100, HEADER_H + (ROW_H * ROWS) / 2);
+        } else {
+            const windowStart = Math.max(0, Math.min(cursorIndex - 1, total - ROWS));
+            const focusedRow  = cursorIndex - windowStart;
+
+            for (let row = 0; row < ROWS; row++) {
+                const itemIdx = windowStart + row;
+                if (itemIdx >= total) break;
+                const item      = qbs.items[itemIdx];
+                const isFocused = (row === focusedRow);
+                const isLocked  = (itemIdx === 0);
+                const rowY      = HEADER_H + row * ROW_H;
+
+                if (isFocused) {
+                    // Locked (next track): neutral grey — signals "not interactive" while accent
+                    // left bar + accent lock icon still communicate focus and locked state.
+                    ctx.fillStyle = isLocked
+                        ? (isDimmed ? 'rgba(60,60,60,0.22)' : 'rgba(150,150,150,0.15)')
+                        : (isDimmed ? 'rgba(80,80,80,0.25)'  : hexToRgba(effectiveAccent, 0.25));
+                    ctx.fillRect(0, rowY, 200, ROW_H);
+                    ctx.fillStyle = effectiveAccent;
+                    ctx.fillRect(0, rowY, 3, ROW_H);
+                }
+
+                // Clip row so long titles don't overflow into adjacent rows
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, rowY, 200, ROW_H);
+                ctx.clip();
+
+                const dimAlpha  = isFocused ? 1.0 : 0.65;
+                const titleSize = isFocused ? 11 : 10;
+                const titleFont = `${isFocused ? 'bold ' : ''}${titleSize}px sans-serif`;
+
+                // Draw a padlock icon in the icon column (accent bar 0–3, title at 21)
+                if (itemIdx === 0) {
+                    // When focused: accent color lock pops against the grey row — clearly locked/special.
+                    // When not focused: recede to 50% white so it doesn't compete with title text.
+                    const iconColor = isFocused
+                        ? (isDimmed ? stripSecondary : effectiveAccent)
+                        : (isDimmed
+                            ? `rgba(120,120,120,0.50)`
+                            : `rgba(255,255,255,0.50)`);
+
+                    const cx       = 12;           // horizontal center of icon column
+                    const iconTop  = rowY + 3;     // 3px top padding in 28px row
+                    const sR       = 5;            // shackle arc radius
+                    const sArcY    = iconTop + 6;  // arc center y  (arc top = iconTop+1)
+                    const bodyX    = 4;            // body left edge
+                    const bodyW    = 16;           // body width  (right edge = 20)
+                    const bodyTop  = sArcY + 2;    // body top (shackle legs enter here)
+                    const bodyH    = 14;           // body height → bottom at iconTop+22
+
+                    // Filled body
+                    ctx.fillStyle = iconColor;
+                    ctx.beginPath();
+                    ctx.roundRect(bodyX, bodyTop, bodyW, bodyH, 2);
+                    ctx.fill();
+
+                    // Shackle — stroked U-shape above body
+                    ctx.strokeStyle = iconColor;
+                    ctx.lineWidth   = 1.8;
+                    ctx.lineCap     = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(cx - sR, bodyTop + 3);  // left leg (inside body)
+                    ctx.lineTo(cx - sR, sArcY);         // up to arc
+                    ctx.arc(cx, sArcY, sR, Math.PI, 0); // arch over top
+                    ctx.lineTo(cx + sR, bodyTop + 3);   // right leg (inside body)
+                    ctx.stroke();
+
+                    // Keyhole cutout
+                    ctx.fillStyle = isDimmed ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.65)';
+                    const ky = bodyTop + 5;
+                    ctx.beginPath();
+                    ctx.arc(cx, ky, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillRect(cx - 1.5, ky, 3, 3.5); // slot below circle
+                }
+
+                const titleX     = itemIdx === 0 ? 21 : 5;
+                const titleWidth = itemIdx === 0 ? 172 : 188;
+                const rawTitle   = item.title || 'Unknown';
+                const titleText  = truncateText(ctx, rawTitle, titleFont, titleWidth);
+                ctx.font      = titleFont;
+                ctx.fillStyle = isDimmed
+                    ? `rgba(150,150,150,${dimAlpha})`
+                    : `rgba(255,255,255,${dimAlpha})`;
+                ctx.textAlign    = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(titleText, titleX, rowY + 3);
+
+                if (item.artist) {
+                    const artistFont = '9px sans-serif';
+                    // Use the dedicated queue star rating setting; 'none' suppresses display
+                    const queueRatingMode = settings.queueRatingMode || 'half';
+                    const stars = (item.userRating && queueRatingMode !== 'none')
+                        ? formatRating(item.userRating, queueRatingMode) : null;
+                    const artistText = truncateText(ctx, item.artist, artistFont, itemIdx === 0 ? 167 : 188);
+                    ctx.font      = artistFont;
+                    ctx.fillStyle = isDimmed
+                        ? `rgba(100,100,100,${dimAlpha})`
+                        : `rgba(180,180,180,${dimAlpha})`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(artistText, titleX, rowY + 3 + titleSize + 2);
+                    if (stars) {
+                        ctx.fillStyle = isDimmed
+                            ? `rgba(120,120,120,${dimAlpha})`
+                            : hexToRgba(effectiveAccent, dimAlpha);
+                        ctx.textAlign = 'right';
+                        ctx.fillText(stars, 196, rowY + 3 + titleSize + 2);
+                        ctx.textAlign = 'left';
+                    }
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // Progress bar
+        const totalPanels = parseInt(settings.progressTotalPanels) || 3;
+        const position    = parseInt(settings.progressPosition)    || 1;
+        const progress    = state.displayProgress;
+        const barY        = HEADER_H + ROW_H * ROWS; // y=95
+        ctx.fillStyle = COLORS.DARK_GRAY;
+        ctx.fillRect(0, barY, 200, BAR_H);
+        if (position > 0 && position <= totalPanels) {
+            const segSize  = 100 / totalPanels;
+            const segStart = (position - 1) * segSize;
+            const segEnd   = position * segSize;
+            if (progress > segStart) {
+                const progressInSeg = Math.min(progress, segEnd) - segStart;
+                const fillWidth = Math.round((progressInSeg / segSize) * 200);
+                if (fillWidth > 0) {
+                    ctx.fillStyle = effectiveAccent;
+                    ctx.fillRect(0, barY, fillWidth, BAR_H);
+                }
+            }
+        }
+
+        if (isDimmed) {
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(0, 0, 200, 100);
+        }
+
+        setFeedback(context, { overlay: canvas.toDataURL('image/png') });
+    }
+
+    function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function truncateText(ctx, text, font, maxWidth) {
+        ctx.font = font;
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        let t = text;
+        while (t.length > 0 && ctx.measureText(t + '\u2026').width > maxWidth) t = t.slice(0, -1);
+        return t + '\u2026';
+    }
+
+    /**
      * Render 3-up poster carousel: prev (dim) | current (highlighted) | next (dim)
      */
     function renderPlaylistCarouselPoster(context, carousel, accentColor) {
@@ -3326,15 +3619,10 @@
         const prevPlaylist = n > 1 ? playlists[prevIdx] : null;
         const nextPlaylist = n > 1 ? playlists[nextIdx] : null;
 
-        // Compute PROG_Y using the same formula as renderStripLayout so the progress
-        // bar aligns perfectly with adjacent text carousel tiles at any font size.
-        const _s = state.getActionSettings(context);
-        const _fs = parseInt(_s.fontSize) || 16;
-        const _ls = Math.max(14, Math.round(_fs * 0.85));
-        const _gap = (100 - (_ls + 4 + _fs + 8 + 4)) / 4;
+        // Pin progress bar at the same bottom position as Queue and text modes (y=95, h=5).
         const NAME_H = 12;
-        const PROG_Y = Math.round(_gap + (_ls + 4) + _gap + (_fs + 8) + _gap);
-        const PROG_H = 4;
+        const PROG_Y = 95;
+        const PROG_H = 5;
         const ART_Y = NAME_H;
         const ART_H = PROG_Y - NAME_H; // art zone between name bar and progress bar
         // Scale poster sizes proportionally to fit art zone (reference: CH=74, SH=50 at ART_H=84)
@@ -3521,17 +3809,15 @@
         const labelSize = Math.max(14, Math.round(fontSize * 0.85));
         const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, accentColor);
         const textAreaH = fontSize + 8;
-
-        const stripHeight = 100;
-        const progressBarHeight = 4;
         const labelHeight = labelSize + 4;
-        const contentHeight = labelHeight + textAreaH + progressBarHeight;
-        const totalGap = stripHeight - contentHeight;
-        const gap = totalGap / 4;
+        const progressBarHeight = 5;
 
+        // Pin progress bar to the bottom (matching Queue mode)
+        const progressY = 95;
+        // 3 equal gaps: above label, between label & text, between text & bar
+        const gap = (progressY - labelHeight - textAreaH) / 3;
         const labelY = gap;
         const textY = gap + labelHeight + gap;
-        const progressY = textY + textAreaH + gap;
 
         const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
 
@@ -3842,6 +4128,10 @@
     let isPollingInFlight = false;
     let lastSuccessfulPoll = 0;
 
+    // Per-context cache of the containerKey whose items are already loaded.
+    // Avoids redundant HTTP fetches when switching back to queue mode.
+    const queueItemsCache = {};
+
     // Play/pause morph animation
 
 
@@ -3932,6 +4222,11 @@
             loadCarouselPlaylists(context);
         }
 
+        // Load queue items if in queue display mode
+        if (action === ACTIONS.STRIP && settings.displayMode === 'queue') {
+            loadQueueItems(context);
+        }
+
         // Initial render
         updateDisplay(context);
         
@@ -3948,6 +4243,7 @@
             delete state.buttonHoldState[context];
         }
         
+        delete queueItemsCache[context];
         state.removeAction(context);
         
         if (!state.hasActions()) {
@@ -4016,13 +4312,19 @@
         state.updateActionSettings(context, settings);
         applySettingsToGlobal();
         
-        // Reset layout to force refresh
+        // Reset layout and runtime toggle state to force refresh
         state.lastLayoutState[context] = null;
+        state.clearActiveDisplayMode(context);
         
         // Reload playlist carousel if mode changed to playlists
         const action = state.getAction(context)?.action;
         if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
             loadCarouselPlaylists(context);
+        }
+
+        // Reload queue if mode changed to queue
+        if (action === ACTIONS.STRIP && settings.displayMode === 'queue') {
+            loadQueueItems(context);
         }
 
         updateDisplayPosition();
@@ -4071,8 +4373,12 @@
 
                     const settings = state.getActionSettings(context) || {};
                     if (settings.fadeOut) {
-                        // Fade-out mode: time-based interpolation with fire-and-forget setVolume
-                        // so the fade duration is not subject to network round-trip latency.
+                        // Fade-out mode: serial doFadeTick loop with a short abort timeout.
+                        // Each tick awaits the volume command but aborts it after FADE_TIMEOUT_MS
+                        // and moves on immediately — Plexamp applies the volume the instant it
+                        // receives the TCP data, well before the HTTP response arrives. Aborting
+                        // early lets us tick every ~FADE_TIMEOUT_MS instead of every ~600-1000ms,
+                        // giving 15+ steps instead of 3–5 regardless of API response latency.
                         // A generation counter lets cancellation work safely across awaits.
                         const gen = Date.now();
                         state.activeFadeTimer = gen;
@@ -4084,13 +4390,20 @@
                             ? settings.fadeDuration * 1000
                             : VOLUME.FADE_DURATION;
 
+                        let lastSentVolume = fadeStartVolume;
+
                         const doFadeTick = async () => {
                             if (state.activeFadeTimer !== gen) return; // cancelled
-                            const elapsed = Date.now() - fadeStartTime;
+                            const tickStart = Date.now();
+                            const elapsed = tickStart - fadeStartTime;
                             const progress = Math.min(elapsed / fadeDurationMs, 1);
-                            const newVolume = Math.max(0, Math.round(fadeStartVolume * (1 - progress)));
-                            if (newVolume <= 0 || progress >= 1) {
-                                // Final step: await for reliable ordering before pause
+                            // Logarithmic curve: each step is a fixed percentage of the remaining
+                            // volume, matching how human hearing perceives loudness. A linear fade
+                            // sounds like the bottom half drops suddenly; log sounds even throughout.
+                            const newVolume = Math.max(0, Math.round(fadeStartVolume * Math.pow(1 - progress, 2.5)));
+
+                            if (progress >= 1 || newVolume <= 0) {
+                                // Final step: use full-timeout setVolume for reliable ordering before pause.
                                 await playbackController.setVolume(0);
                                 if (state.activeFadeTimer !== gen) return; // cancelled during await
                                 state.activeFadeTimer = null;
@@ -4099,14 +4412,17 @@
                                 updateDisplay(context); // clear FADING label
                                 return;
                             }
-                            // Await so the local player never receives concurrent requests.
-                            // After the await, subtract time already spent so the next tick
-                            // fires at roughly FADE_INTERVAL ms after this one started.
-                            const tickStart = Date.now();
-                            await playbackController.setVolume(newVolume);
-                            if (state.activeFadeTimer !== gen) return; // cancelled during await
-                            const remaining = Math.max(0, VOLUME.FADE_INTERVAL - (Date.now() - tickStart));
-                            setTimeout(doFadeTick, remaining);
+
+                            // Only send when volume actually changed; use short abort timeout
+                            // (no server fallback) so each tick takes at most FADE_TIMEOUT_MS.
+                            if (newVolume !== lastSentVolume) {
+                                lastSentVolume = newVolume;
+                                await playbackController.setVolume(newVolume, VOLUME.FADE_TIMEOUT_MS, true);
+                                if (state.activeFadeTimer !== gen) return; // cancelled during await
+                            }
+
+                            const tickDuration = Date.now() - tickStart;
+                            setTimeout(doFadeTick, Math.max(0, VOLUME.FADE_INTERVAL - tickDuration));
                         };
                         doFadeTick();
                     } else {
@@ -4237,15 +4553,27 @@
         if (!action || action !== ACTIONS.STRIP) return;
 
         const dialAction = settings.dialAction || 'none';
+        const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
         // Playlist carousel mode: dial rotation navigates the list
-        if (settings.displayMode === 'playlists') {
+        if (effectiveMode === 'playlists') {
             if (state.playbackState === 'stopped') return; // Plexamp not running
             const carousel = state.getCarouselState(context);
             if (!carousel || carousel.playlists.length === 0) return;
             const total = carousel.playlists.length;
             carousel.index = ((carousel.index + ticks) % total + total) % total;
             state.setCarouselState(context, carousel);
+            layoutManager.renderStripLayout(context);
+            return;
+        }
+
+        // Queue browser mode: dial rotation moves the cursor
+        if (effectiveMode === 'queue') {
+            const qbs = state.getQueueBrowserState(context);
+            if (!qbs || qbs.items.length === 0) return;
+            const newCursor = Math.max(0, Math.min((qbs.cursorIndex || 0) + ticks, qbs.items.length - 1));
+            // Copy state, clear any in-progress removal animation
+            state.setQueueBrowserState(context, { items: qbs.items, cursorIndex: newCursor, removalOffset: 0 });
             layoutManager.renderStripLayout(context);
             return;
         }
@@ -4314,10 +4642,18 @@
         if (action !== ACTIONS.STRIP) return;
 
         const settings = state.getActionSettings(context) || {};
+        const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
-        if (settings.displayMode === 'playlists') {
+        if (effectiveMode === 'playlists') {
             // Record press; onDialUp will fire the play action
             if (state.playbackState === 'stopped') return; // Plexamp not running
+            state.dialHoldState[context] = { pressTime: Date.now() };
+            return;
+        }
+
+        if (effectiveMode === 'queue') {
+            // Record press; onDialUp will fire the remove action
+            if (state.playbackState === 'stopped') return;
             state.dialHoldState[context] = { pressTime: Date.now() };
             return;
         }
@@ -4333,8 +4669,9 @@
         if (action !== ACTIONS.STRIP) return;
 
         const settings = state.getActionSettings(context) || {};
+        const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
-        if (settings.displayMode === 'playlists') {
+        if (effectiveMode === 'playlists') {
             delete state.dialHoldState[context];
 
             // Press: play the currently highlighted playlist (launch Plexamp first if not running)
@@ -4348,6 +4685,41 @@
             playbackController.playPlaylist(playlist.ratingKey, settings.carouselShuffle === true);
             layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
         }
+
+        if (effectiveMode === 'queue') {
+            delete state.dialHoldState[context];
+
+            const qbs = state.getQueueBrowserState(context);
+            if (!qbs || qbs.items.length === 0) return;
+            const removingIdx  = qbs.cursorIndex;
+            const removingItem = qbs.items[removingIdx];
+            if (!removingItem) return;
+
+            // The very next track (index 0) is pre-buffered by Plexamp and cannot be
+            // reliably removed — kicking it causes a snap-back to the current song.
+            if (removingIdx === 0) return;
+
+            // Instant removal from local list
+            const newItems  = qbs.items.filter((_, i) => i !== removingIdx);
+            const newCursor = Math.min(removingIdx, Math.max(0, newItems.length - 1));
+            state.setQueueBrowserState(context, { items: newItems, cursorIndex: newCursor });
+            layoutManager.renderStripLayout(context);
+
+            // When kicking the pre-buffered next track (index 0), Plexamp will play it
+            // from its audio buffer regardless of the server queue deletion. Store C's key
+            // so the playMedia re-sync on the next poll skips straight to C instead of
+            // re-anchoring on B (which is now deleted and causes a snap-back to A).
+            state.hadRecentKicks = true;
+            state.kickedNextTrackKey = (removingIdx === 0 && newItems.length > 0)
+                ? (newItems[0].key || null)
+                : null;
+            plexConnection.removeFromQueue(removingItem.queueID, removingItem.playQueueItemID)
+                .then(() => loadQueueItems(context, { forceRefresh: true }))
+                .catch(err => {
+                    logger.warn(`Queue removal failed: ${err.message}`);
+                    loadQueueItems(context, { forceRefresh: true });
+                });
+        }
     }
 
     function onTouchTap(data) {
@@ -4355,6 +4727,22 @@
         const action = state.getAction(context)?.action;
         
         if (action !== ACTIONS.STRIP) return;
+
+        const settings = state.getActionSettings(context) || {};
+
+        // Toggle between playlist carousel and queue view when the checkbox is enabled
+        if (settings.queuePlaylistToggle && settings.displayMode === 'playlists') {
+            const activeMode = state.getActiveDisplayMode(context) || 'playlists';
+            if (activeMode === 'playlists') {
+                state.setActiveDisplayMode(context, 'queue');
+                loadQueueItems(context);
+            } else {
+                state.clearActiveDisplayMode(context);
+                state.lastLayoutState[context] = null;
+                layoutManager.renderStripLayout(context);
+            }
+            return;
+        }
         
         // Tap anywhere on touch strip to play/pause
         if (state.playbackState === 'stopped') return; // Plexamp not running
@@ -4496,9 +4884,68 @@
     // SETTINGS MANAGEMENT
     // ============================================
 
-    /**
-     * Fetch audio playlists from Plex and store in carousel state for a dial context
-     */
+    async function loadQueueItems(context, { forceRefresh = false, currentRatingKey = null } = {}) {
+        const containerKey = state.currentContainerKey;
+        if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+            delete queueItemsCache[context];
+            state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+            state.lastLayoutState[context] = null;
+            layoutManager.renderStripLayout(context);
+            return;
+        }
+
+        // If the same queue is already loaded and we're not forcing a refresh (e.g. mode-switch
+        // back to queue), skip the network round-trip and just re-render from cached state.
+        const existing = state.getQueueBrowserState(context);
+        if (!forceRefresh && queueItemsCache[context] === containerKey && existing?.items?.length > 0) {
+            layoutManager.renderStripLayout(context);
+            return;
+        }
+
+        // Show "Loading..." only when there are no items yet (first-ever load)
+        if (!existing?.items?.length) {
+            state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+            layoutManager.renderStripLayout(context);
+        }
+
+        const queueID = containerKey.split('/').pop();
+
+        try {
+            const result = await plexConnection.fetchPlayQueueItems(containerKey);
+            if (!result) throw new Error('No queue data returned');
+
+            const { selectedItemID, items } = result;
+            // Find the currently-playing item by selectedItemID first.
+            // If the server's selectedItemID hasn't updated yet (happens when a song
+            // plays through naturally and we race the server), fall back to matching
+            // by the ratingKey we already know from the timeline poll.
+            let selectedIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+            if (currentRatingKey && selectedIdx >= 0 && items[selectedIdx]?.ratingKey !== currentRatingKey) {
+                const byRating = items.findIndex(i => i.ratingKey === currentRatingKey);
+                if (byRating >= 0) selectedIdx = byRating;
+            }
+            // "Up next" = only the tracks after the currently playing one
+            const upNext = selectedIdx >= 0 ? items.slice(selectedIdx + 1) : items;
+            const upNextWithQueueID = upNext.map(i => ({ ...i, queueID }));
+
+            const fresh     = state.getQueueBrowserState(context);
+            const newCursor = Math.min(fresh?.cursorIndex || 0, Math.max(0, upNextWithQueueID.length - 1));
+            state.setQueueBrowserState(context, { items: upNextWithQueueID, cursorIndex: newCursor });
+            queueItemsCache[context] = containerKey; // mark as loaded
+            logger.info(`Queue browser: loaded ${upNextWithQueueID.length} up-next items`);
+        } catch (err) {
+            logger.warn(`Failed to load queue items: ${err.message}`);
+            state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+        }
+
+        // Reset layout key so renderQueueBrowser sends a fresh setFeedbackLayout + setFeedback.
+        // This is needed after any real fetch (track change, first load) to guarantee the
+        // Stream Deck display is updated. Cache-hit calls return early above, so they never
+        // reach here and therefore never produce a flash.
+        state.lastLayoutState[context] = null;
+        layoutManager.renderStripLayout(context);
+    }
+
     async function loadCarouselPlaylists(context) {
         // Initialize with empty state so the strip shows "Loading..."
         if (!state.getCarouselState(context)) {
@@ -4598,12 +5045,43 @@
     async function pollTimeline() {
         if (isPollingInFlight) return;
         isPollingInFlight = true;
+        const prevRatingKey = state.lastTimelineRatingKey;
         try {
             const timeline = await plexConnection.fetchTimeline();
             lastSuccessfulPoll = Date.now();
             
             if (timeline && timeline.state !== 'stopped') {
                 metadataCache.updateFromTimeline(timeline);
+                // Refresh queue-browser contexts and reset Plexamp's post-skip internal buffer
+                if (timeline.ratingKey !== prevRatingKey) {
+                    // If the user kicked tracks while the previous track was playing, Plexamp
+                    // may have committed its audio pre-buffer for what USED to come after the
+                    // new track (before the kicks). Force a full queue re-read by calling
+                    // playMedia with the new track's exact context. Plexamp re-establishes its
+                    // queue anchor at the new track and rebuilds its next-track plan from the
+                    // now-correct server queue (which already has kicked items removed).
+                    if (state.hadRecentKicks && timeline.containerKey) {
+                        state.hadRecentKicks = false;
+                        // If the kicked track was the pre-buffered next (index 0), jump straight
+                        // to the intended replacement (C), not the unavoidably-playing B.
+                        const targetKey = state.kickedNextTrackKey || timeline.key;
+                        state.kickedNextTrackKey = null;
+                        plexConnection.playerCommand(
+                            '/player/playback/playMedia',
+                            `type=music&key=${encodeURIComponent(targetKey)}&containerKey=${encodeURIComponent(timeline.containerKey)}&offset=0&mediaIndex=0`
+                        ).catch(() => {});
+                    }
+
+                    state.getAllContexts().forEach(ctx => {
+                        const ad = state.getAction(ctx);
+                        if (ad?.action !== ACTIONS.STRIP) return;
+                        // Always invalidate the cache on track change so that switching to queue
+                        // mode from playlist mode always fetches fresh data, not stale items.
+                        delete queueItemsCache[ctx];
+                        const effectiveMode = state.getActiveDisplayMode(ctx) || state.getActionSettings(ctx)?.displayMode;
+                        if (effectiveMode === 'queue') loadQueueItems(ctx, { forceRefresh: true, currentRatingKey: timeline.ratingKey });
+                    });
+                }
             } else {
                 metadataCache.handleNoSession();
             }

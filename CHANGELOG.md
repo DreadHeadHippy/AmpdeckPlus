@@ -2,12 +2,26 @@
 
 ## [Unreleased]
 
+---
+
+## [2.0.15] - 2026-03-27
+
 ### ✨ New Features
-- **Queue (Up Next) browser on touch strip** — New `Queue (Up Next)` display mode for the Stream Deck+ touch strip tile. Shows the next 3 upcoming tracks as a scrollable text list with title and artist. Rotate the dial to scroll the cursor, press the dial to remove the focused track from the queue. The very next track (index 0) is un-kickable (Plexamp pre-buffers it) and is visually marked with a ▶ prefix and a muted highlight to make this clear.
+- **Queue (Up Next) browser on touch strip** — New `Queue (Up Next)` display mode for the Stream Deck+ touch strip tile. Shows the next 3 upcoming tracks as a scrollable text list with title and artist. Rotate the dial to scroll the cursor, press the dial to remove the focused track from the queue.
 - **Toggle Queue / Playlist with touch** — When the strip tile is set to "Playlists (Carousel)", a new **"Toggle Queue / Playlist with touch"** checkbox appears in the Property Inspector. When enabled, tapping the touch strip switches the tile between the playlist carousel and the Up Next queue view. Tap again to switch back. The dial continues to work correctly in whichever view is active.
+- **Star ratings in queue rows** — Each queue row now displays the track's star rating (if set) right-aligned on the artist line in the accent color. A dedicated **"Queue Rating Display"** dropdown in the strip Property Inspector (visible only in queue mode) controls the format: None, Half stars, Full stars only, or Single star toggle.
 
 ### 🎨 Visual Polish
-- **Progress bar pinned to the bottom edge on all strip modes** — The progress bar is now fixed at y=96 (4px from the bottom) across Artist, Album, Track Title, Time, Playlist (text), and Playlist (3-Up Poster) modes, matching the Queue layout. Content (label + text) re-centres in the space above using three equal gaps.
+- **Logarithmic fade curve on Volume Down fade-out** — The hold-to-mute fade now uses a logarithmic (perceptual) volume curve instead of a linear one. Volume drops quickly at first and slows as it approaches silence, matching how human hearing perceives loudness. The result is a much more natural-sounding fade rather than a mechanical, evenly-stepped ramp.
+- **Progress bar unified across all touch strip modes** — The progress bar is now fixed at y=95 (5px tall) across every strip display mode — text strips, Queue, and the Playlist Carousel. Previously the Playlist Carousel used y=96 at 4px, causing a visible thickness mismatch. All modes now sit flush with the bottom edge uniformly.
+- **"Up next" (pre-buffered) track row has a distinct locked appearance** — The first queue item (the track Plexamp has already pre-loaded into its audio buffer and cannot be removed without a playback glitch) is visually distinguished from kickable tracks:
+  - A **lock icon** occupies the left icon column — rendered in the accent color when focused, 50% white when not focused.
+  - When focused, the row uses a **neutral grey highlight** (`rgba(150,150,150,0.15)`) rather than the accent tint used by kickable rows, clearly signaling it cannot be interacted with.
+  - The accent left bar and accent lock icon together communicate "I can navigate here, but not kick it."
+  - *Why it's locked:* Plexamp audio-buffers the next track before the current one finishes. Removing it from the server queue after buffering has no effect — Plexamp plays it anyway from memory. Re-anchoring via `playMedia` after the fact caused unreliable snap-back behaviour, so the track remains read-only in the queue UI until it naturally becomes the current song.
+
+### 🔒 Security
+- **Updated transitive dependencies** — `picomatch` updated from 4.0.3 → 4.0.4 (method injection via POSIX bracket expressions); `brace-expansion` updated to 5.0.5 (zero-step sequence ReDoS). Neither affects runtime plugin behaviour — fixes apply to build tooling only.
 
 ---
 

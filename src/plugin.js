@@ -22,6 +22,10 @@ let connection = null;
 let isPollingInFlight = false;
 let lastSuccessfulPoll = 0;
 
+// Per-context cache of the containerKey whose items are already loaded.
+// Avoids redundant HTTP fetches when switching back to queue mode.
+const queueItemsCache = {};
+
 // Play/pause morph animation
 
 
@@ -112,6 +116,11 @@ function onWillAppear(data) {
         loadCarouselPlaylists(context);
     }
 
+    // Load queue items if in queue display mode
+    if (action === ACTIONS.STRIP && settings.displayMode === 'queue') {
+        loadQueueItems(context);
+    }
+
     // Initial render
     updateDisplay(context);
     
@@ -128,6 +137,7 @@ function onWillDisappear(data) {
         delete state.buttonHoldState[context];
     }
     
+    delete queueItemsCache[context];
     state.removeAction(context);
     
     if (!state.hasActions()) {
@@ -196,13 +206,19 @@ function onDidReceiveSettings(data) {
     state.updateActionSettings(context, settings);
     applySettingsToGlobal(settings);
     
-    // Reset layout to force refresh
+    // Reset layout and runtime toggle state to force refresh
     state.lastLayoutState[context] = null;
+    state.clearActiveDisplayMode(context);
     
     // Reload playlist carousel if mode changed to playlists
     const action = state.getAction(context)?.action;
     if (action === ACTIONS.STRIP && settings.displayMode === 'playlists') {
         loadCarouselPlaylists(context);
+    }
+
+    // Reload queue if mode changed to queue
+    if (action === ACTIONS.STRIP && settings.displayMode === 'queue') {
+        loadQueueItems(context);
     }
 
     updateDisplayPosition();
@@ -251,8 +267,12 @@ function onKeyDown(data) {
 
                 const settings = state.getActionSettings(context) || {};
                 if (settings.fadeOut) {
-                    // Fade-out mode: time-based interpolation with fire-and-forget setVolume
-                    // so the fade duration is not subject to network round-trip latency.
+                    // Fade-out mode: serial doFadeTick loop with a short abort timeout.
+                    // Each tick awaits the volume command but aborts it after FADE_TIMEOUT_MS
+                    // and moves on immediately — Plexamp applies the volume the instant it
+                    // receives the TCP data, well before the HTTP response arrives. Aborting
+                    // early lets us tick every ~FADE_TIMEOUT_MS instead of every ~600-1000ms,
+                    // giving 15+ steps instead of 3–5 regardless of API response latency.
                     // A generation counter lets cancellation work safely across awaits.
                     const gen = Date.now();
                     state.activeFadeTimer = gen;
@@ -264,13 +284,20 @@ function onKeyDown(data) {
                         ? settings.fadeDuration * 1000
                         : VOLUME.FADE_DURATION;
 
+                    let lastSentVolume = fadeStartVolume;
+
                     const doFadeTick = async () => {
                         if (state.activeFadeTimer !== gen) return; // cancelled
-                        const elapsed = Date.now() - fadeStartTime;
+                        const tickStart = Date.now();
+                        const elapsed = tickStart - fadeStartTime;
                         const progress = Math.min(elapsed / fadeDurationMs, 1);
-                        const newVolume = Math.max(0, Math.round(fadeStartVolume * (1 - progress)));
-                        if (newVolume <= 0 || progress >= 1) {
-                            // Final step: await for reliable ordering before pause
+                        // Logarithmic curve: each step is a fixed percentage of the remaining
+                        // volume, matching how human hearing perceives loudness. A linear fade
+                        // sounds like the bottom half drops suddenly; log sounds even throughout.
+                        const newVolume = Math.max(0, Math.round(fadeStartVolume * Math.pow(1 - progress, 2.5)));
+
+                        if (progress >= 1 || newVolume <= 0) {
+                            // Final step: use full-timeout setVolume for reliable ordering before pause.
                             await playbackController.setVolume(0);
                             if (state.activeFadeTimer !== gen) return; // cancelled during await
                             state.activeFadeTimer = null;
@@ -279,14 +306,17 @@ function onKeyDown(data) {
                             updateDisplay(context); // clear FADING label
                             return;
                         }
-                        // Await so the local player never receives concurrent requests.
-                        // After the await, subtract time already spent so the next tick
-                        // fires at roughly FADE_INTERVAL ms after this one started.
-                        const tickStart = Date.now();
-                        await playbackController.setVolume(newVolume);
-                        if (state.activeFadeTimer !== gen) return; // cancelled during await
-                        const remaining = Math.max(0, VOLUME.FADE_INTERVAL - (Date.now() - tickStart));
-                        setTimeout(doFadeTick, remaining);
+
+                        // Only send when volume actually changed; use short abort timeout
+                        // (no server fallback) so each tick takes at most FADE_TIMEOUT_MS.
+                        if (newVolume !== lastSentVolume) {
+                            lastSentVolume = newVolume;
+                            await playbackController.setVolume(newVolume, VOLUME.FADE_TIMEOUT_MS, true);
+                            if (state.activeFadeTimer !== gen) return; // cancelled during await
+                        }
+
+                        const tickDuration = Date.now() - tickStart;
+                        setTimeout(doFadeTick, Math.max(0, VOLUME.FADE_INTERVAL - tickDuration));
                     };
                     doFadeTick();
                 } else {
@@ -417,15 +447,27 @@ function onDialRotate(data) {
     if (!action || action !== ACTIONS.STRIP) return;
 
     const dialAction = settings.dialAction || 'none';
+    const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
     // Playlist carousel mode: dial rotation navigates the list
-    if (settings.displayMode === 'playlists') {
+    if (effectiveMode === 'playlists') {
         if (state.playbackState === 'stopped') return; // Plexamp not running
         const carousel = state.getCarouselState(context);
         if (!carousel || carousel.playlists.length === 0) return;
         const total = carousel.playlists.length;
         carousel.index = ((carousel.index + ticks) % total + total) % total;
         state.setCarouselState(context, carousel);
+        layoutManager.renderStripLayout(context);
+        return;
+    }
+
+    // Queue browser mode: dial rotation moves the cursor
+    if (effectiveMode === 'queue') {
+        const qbs = state.getQueueBrowserState(context);
+        if (!qbs || qbs.items.length === 0) return;
+        const newCursor = Math.max(0, Math.min((qbs.cursorIndex || 0) + ticks, qbs.items.length - 1));
+        // Copy state, clear any in-progress removal animation
+        state.setQueueBrowserState(context, { items: qbs.items, cursorIndex: newCursor, removalOffset: 0 });
         layoutManager.renderStripLayout(context);
         return;
     }
@@ -494,10 +536,18 @@ function onDialDown(data) {
     if (action !== ACTIONS.STRIP) return;
 
     const settings = state.getActionSettings(context) || {};
+    const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
-    if (settings.displayMode === 'playlists') {
+    if (effectiveMode === 'playlists') {
         // Record press; onDialUp will fire the play action
         if (state.playbackState === 'stopped') return; // Plexamp not running
+        state.dialHoldState[context] = { pressTime: Date.now() };
+        return;
+    }
+
+    if (effectiveMode === 'queue') {
+        // Record press; onDialUp will fire the remove action
+        if (state.playbackState === 'stopped') return;
         state.dialHoldState[context] = { pressTime: Date.now() };
         return;
     }
@@ -513,8 +563,9 @@ function onDialUp(data) {
     if (action !== ACTIONS.STRIP) return;
 
     const settings = state.getActionSettings(context) || {};
+    const effectiveMode = state.getActiveDisplayMode(context) || settings.displayMode;
 
-    if (settings.displayMode === 'playlists') {
+    if (effectiveMode === 'playlists') {
         delete state.dialHoldState[context];
 
         // Press: play the currently highlighted playlist (launch Plexamp first if not running)
@@ -528,6 +579,41 @@ function onDialUp(data) {
         playbackController.playPlaylist(playlist.ratingKey, settings.carouselShuffle === true);
         layoutManager.showStripOverlay(context, 'PLAYING', playlist.title);
     }
+
+    if (effectiveMode === 'queue') {
+        delete state.dialHoldState[context];
+
+        const qbs = state.getQueueBrowserState(context);
+        if (!qbs || qbs.items.length === 0) return;
+        const removingIdx  = qbs.cursorIndex;
+        const removingItem = qbs.items[removingIdx];
+        if (!removingItem) return;
+
+        // The very next track (index 0) is pre-buffered by Plexamp and cannot be
+        // reliably removed — kicking it causes a snap-back to the current song.
+        if (removingIdx === 0) return;
+
+        // Instant removal from local list
+        const newItems  = qbs.items.filter((_, i) => i !== removingIdx);
+        const newCursor = Math.min(removingIdx, Math.max(0, newItems.length - 1));
+        state.setQueueBrowserState(context, { items: newItems, cursorIndex: newCursor });
+        layoutManager.renderStripLayout(context);
+
+        // When kicking the pre-buffered next track (index 0), Plexamp will play it
+        // from its audio buffer regardless of the server queue deletion. Store C's key
+        // so the playMedia re-sync on the next poll skips straight to C instead of
+        // re-anchoring on B (which is now deleted and causes a snap-back to A).
+        state.hadRecentKicks = true;
+        state.kickedNextTrackKey = (removingIdx === 0 && newItems.length > 0)
+            ? (newItems[0].key || null)
+            : null;
+        plexConnection.removeFromQueue(removingItem.queueID, removingItem.playQueueItemID)
+            .then(() => loadQueueItems(context, { forceRefresh: true }))
+            .catch(err => {
+                logger.warn(`Queue removal failed: ${err.message}`);
+                loadQueueItems(context, { forceRefresh: true });
+            });
+    }
 }
 
 function onTouchTap(data) {
@@ -535,6 +621,22 @@ function onTouchTap(data) {
     const action = state.getAction(context)?.action;
     
     if (action !== ACTIONS.STRIP) return;
+
+    const settings = state.getActionSettings(context) || {};
+
+    // Toggle between playlist carousel and queue view when the checkbox is enabled
+    if (settings.queuePlaylistToggle && settings.displayMode === 'playlists') {
+        const activeMode = state.getActiveDisplayMode(context) || 'playlists';
+        if (activeMode === 'playlists') {
+            state.setActiveDisplayMode(context, 'queue');
+            loadQueueItems(context);
+        } else {
+            state.clearActiveDisplayMode(context);
+            state.lastLayoutState[context] = null;
+            layoutManager.renderStripLayout(context);
+        }
+        return;
+    }
     
     // Tap anywhere on touch strip to play/pause
     if (state.playbackState === 'stopped') return; // Plexamp not running
@@ -676,9 +778,68 @@ async function handleButtonAction(action, context) {
 // SETTINGS MANAGEMENT
 // ============================================
 
-/**
- * Fetch audio playlists from Plex and store in carousel state for a dial context
- */
+async function loadQueueItems(context, { forceRefresh = false, currentRatingKey = null } = {}) {
+    const containerKey = state.currentContainerKey;
+    if (!containerKey || !containerKey.startsWith('/playQueues/')) {
+        delete queueItemsCache[context];
+        state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+        state.lastLayoutState[context] = null;
+        layoutManager.renderStripLayout(context);
+        return;
+    }
+
+    // If the same queue is already loaded and we're not forcing a refresh (e.g. mode-switch
+    // back to queue), skip the network round-trip and just re-render from cached state.
+    const existing = state.getQueueBrowserState(context);
+    if (!forceRefresh && queueItemsCache[context] === containerKey && existing?.items?.length > 0) {
+        layoutManager.renderStripLayout(context);
+        return;
+    }
+
+    // Show "Loading..." only when there are no items yet (first-ever load)
+    if (!existing?.items?.length) {
+        state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+        layoutManager.renderStripLayout(context);
+    }
+
+    const queueID = containerKey.split('/').pop();
+
+    try {
+        const result = await plexConnection.fetchPlayQueueItems(containerKey);
+        if (!result) throw new Error('No queue data returned');
+
+        const { selectedItemID, items } = result;
+        // Find the currently-playing item by selectedItemID first.
+        // If the server's selectedItemID hasn't updated yet (happens when a song
+        // plays through naturally and we race the server), fall back to matching
+        // by the ratingKey we already know from the timeline poll.
+        let selectedIdx = items.findIndex(i => i.playQueueItemID === selectedItemID);
+        if (currentRatingKey && selectedIdx >= 0 && items[selectedIdx]?.ratingKey !== currentRatingKey) {
+            const byRating = items.findIndex(i => i.ratingKey === currentRatingKey);
+            if (byRating >= 0) selectedIdx = byRating;
+        }
+        // "Up next" = only the tracks after the currently playing one
+        const upNext = selectedIdx >= 0 ? items.slice(selectedIdx + 1) : items;
+        const upNextWithQueueID = upNext.map(i => ({ ...i, queueID }));
+
+        const fresh     = state.getQueueBrowserState(context);
+        const newCursor = Math.min(fresh?.cursorIndex || 0, Math.max(0, upNextWithQueueID.length - 1));
+        state.setQueueBrowserState(context, { items: upNextWithQueueID, cursorIndex: newCursor });
+        queueItemsCache[context] = containerKey; // mark as loaded
+        logger.info(`Queue browser: loaded ${upNextWithQueueID.length} up-next items`);
+    } catch (err) {
+        logger.warn(`Failed to load queue items: ${err.message}`);
+        state.setQueueBrowserState(context, { items: [], cursorIndex: 0 });
+    }
+
+    // Reset layout key so renderQueueBrowser sends a fresh setFeedbackLayout + setFeedback.
+    // This is needed after any real fetch (track change, first load) to guarantee the
+    // Stream Deck display is updated. Cache-hit calls return early above, so they never
+    // reach here and therefore never produce a flash.
+    state.lastLayoutState[context] = null;
+    layoutManager.renderStripLayout(context);
+}
+
 async function loadCarouselPlaylists(context) {
     // Initialize with empty state so the strip shows "Loading..."
     if (!state.getCarouselState(context)) {
@@ -778,12 +939,43 @@ function stopPolling() {
 async function pollTimeline() {
     if (isPollingInFlight) return;
     isPollingInFlight = true;
+    const prevRatingKey = state.lastTimelineRatingKey;
     try {
         const timeline = await plexConnection.fetchTimeline();
         lastSuccessfulPoll = Date.now();
         
         if (timeline && timeline.state !== 'stopped') {
             metadataCache.updateFromTimeline(timeline);
+            // Refresh queue-browser contexts and reset Plexamp's post-skip internal buffer
+            if (timeline.ratingKey !== prevRatingKey) {
+                // If the user kicked tracks while the previous track was playing, Plexamp
+                // may have committed its audio pre-buffer for what USED to come after the
+                // new track (before the kicks). Force a full queue re-read by calling
+                // playMedia with the new track's exact context. Plexamp re-establishes its
+                // queue anchor at the new track and rebuilds its next-track plan from the
+                // now-correct server queue (which already has kicked items removed).
+                if (state.hadRecentKicks && timeline.containerKey) {
+                    state.hadRecentKicks = false;
+                    // If the kicked track was the pre-buffered next (index 0), jump straight
+                    // to the intended replacement (C), not the unavoidably-playing B.
+                    const targetKey = state.kickedNextTrackKey || timeline.key;
+                    state.kickedNextTrackKey = null;
+                    plexConnection.playerCommand(
+                        '/player/playback/playMedia',
+                        `type=music&key=${encodeURIComponent(targetKey)}&containerKey=${encodeURIComponent(timeline.containerKey)}&offset=0&mediaIndex=0`
+                    ).catch(() => {});
+                }
+
+                state.getAllContexts().forEach(ctx => {
+                    const ad = state.getAction(ctx);
+                    if (ad?.action !== ACTIONS.STRIP) return;
+                    // Always invalidate the cache on track change so that switching to queue
+                    // mode from playlist mode always fetches fresh data, not stale items.
+                    delete queueItemsCache[ctx];
+                    const effectiveMode = state.getActiveDisplayMode(ctx) || state.getActionSettings(ctx)?.displayMode;
+                    if (effectiveMode === 'queue') loadQueueItems(ctx, { forceRefresh: true, currentRatingKey: timeline.ratingKey });
+                });
+            }
         } else {
             metadataCache.handleNoSession();
         }

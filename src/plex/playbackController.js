@@ -124,7 +124,7 @@ class PlaybackController {
     /**
      * Set volume
      */
-    async setVolume(level) {
+    async setVolume(level, timeoutMs = 1000, noFallback = false) {
         const volume = clamp(level, VOLUME.MIN, VOLUME.MAX);
         const previousVolume = state.currentVolume;
         
@@ -135,7 +135,9 @@ class PlaybackController {
         try {
             await plexConnection.playerCommand(
                 '/player/playback/setParameters',
-                `volume=${volume}`
+                `volume=${volume}`,
+                timeoutMs,
+                noFallback
             );
             logger.debug(`Volume set to ${volume}`);
         } catch (error) {

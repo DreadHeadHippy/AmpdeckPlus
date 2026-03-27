@@ -76,6 +76,20 @@ class StateManager {
         this.carouselState = {};     // context -> { playlists: [], index: 0 }
         this.dialHoldState = {};     // context -> { pressTime, didLongPress }
         this.currentPlaylistName = null; // Name of the playlist currently playing (set by us)
+
+        // Queue browser state (per dial context)
+        this.queueBrowserState = {}; // context -> { items: [], cursorIndex: 0 }
+
+        // Flag: queue items were kicked since the last track change.
+        // Used to trigger a playMedia re-sync on the next track change so Plexamp
+        // re-reads the queue with the new track as anchor and plans correct next-track.
+        this.hadRecentKicks = false;
+        // When the pre-buffered next track (index 0) is kicked, store the key of the
+        // track that should become the new next song so playMedia can jump straight to it.
+        this.kickedNextTrackKey = null;
+
+        // Runtime display mode override (touch-toggle between playlists and queue)
+        this.activeDisplayMode = {}; // context -> 'queue' | null
     }
 
     // Action management
@@ -92,6 +106,8 @@ class StateManager {
         delete this.timeDisplayMode[context];
         delete this.carouselState[context];
         delete this.dialHoldState[context];
+        delete this.queueBrowserState[context];
+        delete this.activeDisplayMode[context];
     }
 
     getAction(context) {
@@ -216,6 +232,32 @@ class StateManager {
 
     clearCarouselState(context) {
         delete this.carouselState[context];
+    }
+
+    // Queue browser state
+    getQueueBrowserState(context) {
+        return this.queueBrowserState[context] || null;
+    }
+
+    setQueueBrowserState(context, data) {
+        this.queueBrowserState[context] = data;
+    }
+
+    clearQueueBrowserState(context) {
+        delete this.queueBrowserState[context];
+    }
+
+    // Runtime active display mode (touch-toggle override)
+    getActiveDisplayMode(context) {
+        return this.activeDisplayMode[context] || null;
+    }
+
+    setActiveDisplayMode(context, mode) {
+        this.activeDisplayMode[context] = mode;
+    }
+
+    clearActiveDisplayMode(context) {
+        delete this.activeDisplayMode[context];
     }
 
     // Time display mode

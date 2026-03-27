@@ -4,7 +4,7 @@
  */
 
 import { SCROLL, COLORS } from '../core/constants.js';
-import { formatTime, measureTextWidth } from '../utils/helpers.js';
+import { formatTime, measureTextWidth, formatRating } from '../utils/helpers.js';
 import state from '../core/stateManager.js';
 import plexConnection from '../plex/plexConnection.js';
 import logger from '../utils/logger.js';
@@ -51,7 +51,7 @@ export function renderStripLayout(context) {
     if (state.getStripOverlay(context)) return;
 
     const settings = state.getActionSettings(context);
-    const displayMode = settings.displayMode || 'artist';
+    const displayMode = state.getActiveDisplayMode(context) || settings.displayMode || 'artist';
     const fontSize = parseInt(settings.fontSize) || 16;
     const totalPanels = parseInt(settings.progressTotalPanels) || 3;
     const position = parseInt(settings.progressPosition) || 1;
@@ -65,6 +65,8 @@ export function renderStripLayout(context) {
     let label = '', text = '';
     if (displayMode === 'playlists') {
         return renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary);
+    } else if (displayMode === 'queue') {
+        return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary);
     } else if (state.currentTrack) {
         if (displayMode === 'artist') {
             label = 'ARTIST';
@@ -92,18 +94,15 @@ export function renderStripLayout(context) {
 
     // Always use pixmap for displayText for consistent rendering
     const textAreaH = fontSize + 8;
-    
-    // Calculate symmetrical spacing
-    const stripHeight = 100;
-    const progressBarHeight = 4;
     const labelHeight = labelSize + 4;
-    const contentHeight = labelHeight + textAreaH + progressBarHeight;
-    const totalGap = stripHeight - contentHeight;
-    const gap = totalGap / 4; // Equal spacing: top, between label & text, between text & progress, bottom
-    
+    const progressBarHeight = 5;
+
+    // Pin progress bar to the bottom (matching Queue mode)
+    const progressY = 95;
+    // 3 equal gaps: above label, between label & text, between text & bar
+    const gap = (progressY - labelHeight - textAreaH) / 3;
     const labelY = gap;
     const textY = gap + labelHeight + gap;
-    const progressY = textY + textAreaH + gap;
     
     const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
     
@@ -156,6 +155,221 @@ export function renderStripLayout(context) {
 }
 
 /**
+ * Render the "Up Next" queue browser: scrollable text list with focused row highlighted.
+ * Dial rotation moves the cursor; dial press removes the focused track from the queue.
+ */
+function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary) {
+    const layoutKey = 'queue-browser';
+    if (state.lastLayoutState[context] !== layoutKey) {
+        state.lastLayoutState[context] = layoutKey;
+        setFeedbackLayout(context, {
+            id: 'com.dreadheadhippy.ampdeckplus.overlay',
+            items: [{ key: 'overlay', type: 'pixmap', rect: [0, 0, 200, 100] }]
+        });
+    }
+
+    const qbs           = state.getQueueBrowserState(context);
+    const isDimmed      = state.playbackState === 'stopped';
+    const effectiveAccent = isDimmed ? stripSecondary : accentColor;
+
+    const HEADER_H = 11;
+    const ROW_H    = 28;
+    const ROWS     = 3;
+    const BAR_H    = 5;
+    // Layout: 11 + 28×3 + 4 = 99px
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 200; canvas.height = 100;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 200, 100);
+
+    // Header bar
+    ctx.fillStyle = isDimmed ? 'rgba(0,0,0,0.75)' : hexToRgba(effectiveAccent, 0.55);
+    ctx.fillRect(0, 0, 200, HEADER_H);
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textBaseline = 'middle';
+    const headerMid = HEADER_H / 2;
+    ctx.fillStyle = isDimmed ? stripSecondary : textColor;
+    ctx.textAlign = 'left';
+    ctx.fillText('UP NEXT', 4, headerMid);
+
+    const total       = qbs?.items?.length || 0;
+    const cursorIndex = qbs?.cursorIndex   || 0;
+    if (total > 0) {
+        ctx.fillStyle = isDimmed ? stripSecondary : textColor;
+        ctx.textAlign = 'right';
+        ctx.fillText(`${cursorIndex + 1} / ${total}`, 197, headerMid);
+    }
+
+    // Row area
+    if (!qbs || total === 0) {
+        ctx.fillStyle = stripSecondary;
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(qbs ? 'Queue is empty' : 'Loading\u2026', 100, HEADER_H + (ROW_H * ROWS) / 2);
+    } else {
+        const windowStart = Math.max(0, Math.min(cursorIndex - 1, total - ROWS));
+        const focusedRow  = cursorIndex - windowStart;
+
+        for (let row = 0; row < ROWS; row++) {
+            const itemIdx = windowStart + row;
+            if (itemIdx >= total) break;
+            const item      = qbs.items[itemIdx];
+            const isFocused = (row === focusedRow);
+            const isLocked  = (itemIdx === 0);
+            const rowY      = HEADER_H + row * ROW_H;
+
+            if (isFocused) {
+                // Locked (next track): neutral grey — signals "not interactive" while accent
+                // left bar + accent lock icon still communicate focus and locked state.
+                ctx.fillStyle = isLocked
+                    ? (isDimmed ? 'rgba(60,60,60,0.22)' : 'rgba(150,150,150,0.15)')
+                    : (isDimmed ? 'rgba(80,80,80,0.25)'  : hexToRgba(effectiveAccent, 0.25));
+                ctx.fillRect(0, rowY, 200, ROW_H);
+                ctx.fillStyle = effectiveAccent;
+                ctx.fillRect(0, rowY, 3, ROW_H);
+            }
+
+            // Clip row so long titles don't overflow into adjacent rows
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, rowY, 200, ROW_H);
+            ctx.clip();
+
+            const dimAlpha  = isFocused ? 1.0 : 0.65;
+            const titleSize = isFocused ? 11 : 10;
+            const titleFont = `${isFocused ? 'bold ' : ''}${titleSize}px sans-serif`;
+
+            // Draw a padlock icon in the icon column (accent bar 0–3, title at 21)
+            if (itemIdx === 0) {
+                // When focused: accent color lock pops against the grey row — clearly locked/special.
+                // When not focused: recede to 50% white so it doesn't compete with title text.
+                const iconColor = isFocused
+                    ? (isDimmed ? stripSecondary : effectiveAccent)
+                    : (isDimmed
+                        ? `rgba(120,120,120,0.50)`
+                        : `rgba(255,255,255,0.50)`);
+
+                const cx       = 12;           // horizontal center of icon column
+                const iconTop  = rowY + 3;     // 3px top padding in 28px row
+                const sR       = 5;            // shackle arc radius
+                const sArcY    = iconTop + 6;  // arc center y  (arc top = iconTop+1)
+                const bodyX    = 4;            // body left edge
+                const bodyW    = 16;           // body width  (right edge = 20)
+                const bodyTop  = sArcY + 2;    // body top (shackle legs enter here)
+                const bodyH    = 14;           // body height → bottom at iconTop+22
+
+                // Filled body
+                ctx.fillStyle = iconColor;
+                ctx.beginPath();
+                ctx.roundRect(bodyX, bodyTop, bodyW, bodyH, 2);
+                ctx.fill();
+
+                // Shackle — stroked U-shape above body
+                ctx.strokeStyle = iconColor;
+                ctx.lineWidth   = 1.8;
+                ctx.lineCap     = 'round';
+                ctx.beginPath();
+                ctx.moveTo(cx - sR, bodyTop + 3);  // left leg (inside body)
+                ctx.lineTo(cx - sR, sArcY);         // up to arc
+                ctx.arc(cx, sArcY, sR, Math.PI, 0); // arch over top
+                ctx.lineTo(cx + sR, bodyTop + 3);   // right leg (inside body)
+                ctx.stroke();
+
+                // Keyhole cutout
+                ctx.fillStyle = isDimmed ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.65)';
+                const ky = bodyTop + 5;
+                ctx.beginPath();
+                ctx.arc(cx, ky, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(cx - 1.5, ky, 3, 3.5); // slot below circle
+            }
+
+            const titleX     = itemIdx === 0 ? 21 : 5;
+            const titleWidth = itemIdx === 0 ? 172 : 188;
+            const rawTitle   = item.title || 'Unknown';
+            const titleText  = truncateText(ctx, rawTitle, titleFont, titleWidth);
+            ctx.font      = titleFont;
+            ctx.fillStyle = isDimmed
+                ? `rgba(150,150,150,${dimAlpha})`
+                : `rgba(255,255,255,${dimAlpha})`;
+            ctx.textAlign    = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(titleText, titleX, rowY + 3);
+
+            if (item.artist) {
+                const artistFont = '9px sans-serif';
+                // Use the dedicated queue star rating setting; 'none' suppresses display
+                const queueRatingMode = settings.queueRatingMode || 'half';
+                const stars = (item.userRating && queueRatingMode !== 'none')
+                    ? formatRating(item.userRating, queueRatingMode) : null;
+                const artistText = truncateText(ctx, item.artist, artistFont, itemIdx === 0 ? 167 : 188);
+                ctx.font      = artistFont;
+                ctx.fillStyle = isDimmed
+                    ? `rgba(100,100,100,${dimAlpha})`
+                    : `rgba(180,180,180,${dimAlpha})`;
+                ctx.textAlign = 'left';
+                ctx.fillText(artistText, titleX, rowY + 3 + titleSize + 2);
+                if (stars) {
+                    ctx.fillStyle = isDimmed
+                        ? `rgba(120,120,120,${dimAlpha})`
+                        : hexToRgba(effectiveAccent, dimAlpha);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(stars, 196, rowY + 3 + titleSize + 2);
+                    ctx.textAlign = 'left';
+                }
+            }
+
+            ctx.restore();
+        }
+    }
+
+    // Progress bar
+    const totalPanels = parseInt(settings.progressTotalPanels) || 3;
+    const position    = parseInt(settings.progressPosition)    || 1;
+    const progress    = state.displayProgress;
+    const barY        = HEADER_H + ROW_H * ROWS; // y=95
+    ctx.fillStyle = COLORS.DARK_GRAY;
+    ctx.fillRect(0, barY, 200, BAR_H);
+    if (position > 0 && position <= totalPanels) {
+        const segSize  = 100 / totalPanels;
+        const segStart = (position - 1) * segSize;
+        const segEnd   = position * segSize;
+        if (progress > segStart) {
+            const progressInSeg = Math.min(progress, segEnd) - segStart;
+            const fillWidth = Math.round((progressInSeg / segSize) * 200);
+            if (fillWidth > 0) {
+                ctx.fillStyle = effectiveAccent;
+                ctx.fillRect(0, barY, fillWidth, BAR_H);
+            }
+        }
+    }
+
+    if (isDimmed) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(0, 0, 200, 100);
+    }
+
+    setFeedback(context, { overlay: canvas.toDataURL('image/png') });
+}
+
+function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function truncateText(ctx, text, font, maxWidth) {
+    ctx.font = font;
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let t = text;
+    while (t.length > 0 && ctx.measureText(t + '\u2026').width > maxWidth) t = t.slice(0, -1);
+    return t + '\u2026';
+}
+
+/**
  * Render 3-up poster carousel: prev (dim) | current (highlighted) | next (dim)
  */
 function renderPlaylistCarouselPoster(context, carousel, accentColor) {
@@ -191,15 +405,10 @@ function renderPlaylistCarouselPoster(context, carousel, accentColor) {
     const prevPlaylist = n > 1 ? playlists[prevIdx] : null;
     const nextPlaylist = n > 1 ? playlists[nextIdx] : null;
 
-    // Compute PROG_Y using the same formula as renderStripLayout so the progress
-    // bar aligns perfectly with adjacent text carousel tiles at any font size.
-    const _s = state.getActionSettings(context);
-    const _fs = parseInt(_s.fontSize) || 16;
-    const _ls = Math.max(14, Math.round(_fs * 0.85));
-    const _gap = (100 - (_ls + 4 + _fs + 8 + 4)) / 4;
+    // Pin progress bar at the same bottom position as Queue and text modes (y=95, h=5).
     const NAME_H = 12;
-    const PROG_Y = Math.round(_gap + (_ls + 4) + _gap + (_fs + 8) + _gap);
-    const PROG_H = 4;
+    const PROG_Y = 95;
+    const PROG_H = 5;
     const ART_Y = NAME_H;
     const ART_H = PROG_Y - NAME_H; // art zone between name bar and progress bar
     // Scale poster sizes proportionally to fit art zone (reference: CH=74, SH=50 at ART_H=84)
@@ -386,17 +595,15 @@ function renderPlaylistCarousel(context, settings, fontSize, totalPanels, positi
     const labelSize = Math.max(14, Math.round(fontSize * 0.85));
     const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, accentColor);
     const textAreaH = fontSize + 8;
-
-    const stripHeight = 100;
-    const progressBarHeight = 4;
     const labelHeight = labelSize + 4;
-    const contentHeight = labelHeight + textAreaH + progressBarHeight;
-    const totalGap = stripHeight - contentHeight;
-    const gap = totalGap / 4;
+    const progressBarHeight = 5;
 
+    // Pin progress bar to the bottom (matching Queue mode)
+    const progressY = 95;
+    // 3 equal gaps: above label, between label & text, between text & bar
+    const gap = (progressY - labelHeight - textAreaH) / 3;
     const labelY = gap;
     const textY = gap + labelHeight + gap;
-    const progressY = textY + textAreaH + gap;
 
     const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
 

@@ -74,7 +74,7 @@ class PlexConnection {
      * @param {object|null} extraParams
      * @param {number} timeoutMs - timeout for the player request (default 1000)
      */
-    async playerCommand(path, extraParams = null, timeoutMs = 1000) {
+    async playerCommand(path, extraParams = null, timeoutMs = 1000, noFallback = false) {
         // Prevent commands when not configured (signed out)
         if (!this.isConfigured()) {
             logger.debug('Player command blocked: not configured');
@@ -119,6 +119,12 @@ class PlexConnection {
             if (path.includes('playMedia')) {
                 logger.error(`playMedia command failed: ${error.message}`);
                 throw error;
+            }
+            if (noFallback) {
+                // During fade: timeout is expected — Plexamp already applied the change
+                // on receipt, we just don't need to wait for the HTTP confirmation.
+                logger.debug(`Player command fade-abort (${path}): ${error.message}`);
+                return null;
             }
             logger.warn(`Player command failed (${path}): ${error.message}, falling back to server`);
             return this.serverCommand(path, extraParams);
@@ -594,14 +600,42 @@ class PlexConnection {
             const selectedItemID = container.getAttribute('playQueueSelectedItemID');
             const items = Array.from(doc.querySelectorAll('Track')).map(track => ({
                 playQueueItemID: track.getAttribute('playQueueItemID'),
+                ratingKey: track.getAttribute('ratingKey'),
                 parentRatingKey: track.getAttribute('parentRatingKey'),
-                key: track.getAttribute('key')
+                key: track.getAttribute('key'),
+                title: track.getAttribute('title') || '',
+                artist: track.getAttribute('grandparentTitle') || '',
+                userRating: parseFloat(track.getAttribute('userRating')) || null
             }));
 
             return { selectedItemID, items };
         } catch (error) {
             logger.error(`Failed to fetch play queue items: ${error.message}`);
             return null;
+        }
+    }
+
+    /**
+     * Remove a single item from an existing playQueue on the server.
+     * @param {string} queueID  - numeric queue ID (from containerKey e.g. '/playQueues/12345')
+     * @param {string} playQueueItemID - the item's playQueueItemID
+     */
+    async removeFromQueue(queueID, playQueueItemID) {
+        if (!this.serverUrl || !this.token) return;
+
+        const url = `${this.serverUrl}/playQueues/${queueID}/items/${playQueueItemID}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: this.createHeaders(true),
+                signal: AbortSignal.timeout(3000)
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            logger.debug(`Removed item ${playQueueItemID} from queue ${queueID}`);
+        } catch (error) {
+            logger.error(`Failed to remove from queue: ${error.message}`);
+            throw error;
         }
     }
 

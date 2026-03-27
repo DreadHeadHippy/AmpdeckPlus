@@ -29,10 +29,13 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ⚡ What's New in v2.0.14
+## ✨ What's New in v2.0.15
 
-- **⚡ Near-instant album art after skipping** — Album art, accent color, and supporting metadata now load in parallel rather than sequentially, cutting post-skip load time from ~4 seconds to under a second.
-- **⚡ Smaller art downloads** — Art is fetched at the button's native resolution (144×144px) via Plex's photo transcoder, reducing image download size by up to 95%.
+- **Queue (Up Next) browser** — See your next 3 upcoming tracks on the touch strip. Rotate the dial to scroll, press to remove a track from the queue.
+- **Toggle Queue / Playlist with touch** — Tap the strip to flip between the playlist carousel and the queue view and back again.
+- **Star ratings in queue rows** — Each queue row shows the track's star rating in the accent color. Configurable format: half stars, full stars, single-star toggle, or none.
+- **Logarithmic fade curve** — The Volume Down hold-to-mute fade now sounds natural rather than mechanical, dropping quickly at first and easing toward silence.
+- **Progress bar consistent across all strip modes** — The playlist carousel now matches the queue and text strip exactly (y=95, 5px).
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -43,6 +46,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause. When playback is paused, the album art displays with a gray overlay.
 - **Playlist Button** — Dedicated key action to assign playlists. Assign playlists to buttons, allowing you to start your playlists with the press of a button. Enable **Start playlist shuffled** to shuffle on play.
 - **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Enable **Start playlist shuffled** to shuffle on play. Load your playlists from the action settings.
+- **Queue (Up Next) browser** — Touch strip mode that shows the next 3 upcoming tracks as a live scrollable list with title, artist, and star rating. Rotate the dial to move the cursor, press to remove the focused track from the queue. The first item (pre-buffered by Plexamp) is shown with a lock icon and cannot be removed. Enable **Toggle Queue / Playlist with touch** in the Playlist Carousel settings to tap between the carousel and queue views without leaving the strip.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability.
 - **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
 - **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
@@ -100,6 +104,7 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 | Volume Up | ✓ | ✓ |
 | Volume Down | ✓ | ✓ |
 | Now Playing Strip | — | ✓ |
+| Queue (Up Next) Browser | — | ✓ |
 | Dial Controls | — | ✓ |
 | Spanning Progress Bar | — | ✓ |
 

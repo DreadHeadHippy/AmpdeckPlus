@@ -112,6 +112,7 @@
             <option value="track">Track Title</option>
             <option value="time">Time (Elapsed / Total)</option>
             <option value="playlists">Playlists (Carousel)</option>
+            <option value="queue">Queue (Up Next)</option>
         </select>
         <div class="help-text">Choose what this dial section displays. Playlists mode: rotate to browse, press to play.</div>
     </div>
@@ -130,7 +131,23 @@
         <label for="carouselShuffle">Start playlist shuffled</label>
     </div>
     <div id="carouselShuffleHelp" class="help-text" style="display: none; margin-top: -6px; margin-bottom: 10px;">When checked, pressing to play a playlist will shuffle it</div>
-    
+
+    <div class="sdpi-item-checkbox" id="queuePlaylistToggleContainer" style="display: none;">
+        <input type="checkbox" id="queuePlaylistToggle">
+        <label for="queuePlaylistToggle">Toggle Queue / Playlist with touch</label>
+    </div>
+    <div id="queuePlaylistToggleHelp" class="help-text" style="display: none; margin-top: -6px; margin-bottom: 10px;">Tap the strip tile to switch between this playlist view and the Up Next queue</div>
+
+    <div class="sdpi-item" id="queueRatingModeContainer" style="display: none;">
+        <label>Star Rating Style</label>
+        <select id="queueRatingMode">
+            <option value="none">Don't show ratings</option>
+            <option value="half">Half stars (1-5 with halves)</option>
+            <option value="full">Full stars only (1-5)</option>
+            <option value="single">Single star toggle</option>
+        </select>
+    </div>
+
     <div class="sdpi-item">
         <label>Font Size</label>
         <select id="fontSize">
@@ -308,6 +325,8 @@
             document.getElementById('debugMode').checked = settings.debugMode === true;
             document.getElementById('carouselStyle').value = settings.carouselStyle || 'text';
             document.getElementById('carouselShuffle').checked = settings.carouselShuffle === true;
+            document.getElementById('queuePlaylistToggle').checked = settings.queuePlaylistToggle === true;
+            document.getElementById('queueRatingMode').value = settings.queueRatingMode || 'half';
             const useLocalInit = settings.useLocalPlayer === true;
             document.getElementById('useLocalPlayer').checked = useLocalInit;
             togglePlayerUrlField(useLocalInit);
@@ -372,26 +391,39 @@
         }
 
         function updateCarouselStyleVisibility() {
-            const isPlaylists = document.getElementById('displayMode').value === 'playlists';
+            const mode = document.getElementById('displayMode').value;
+            const isPlaylists = mode === 'playlists';
+            const isQueue     = mode === 'queue';
+            const isLocked    = isPlaylists || isQueue;
+
             document.getElementById('carouselStyleContainer').style.display = isPlaylists ? 'block' : 'none';
             document.getElementById('carouselShuffleContainer').style.display = isPlaylists ? 'flex' : 'none';
             document.getElementById('carouselShuffleHelp').style.display = isPlaylists ? 'block' : 'none';
+            document.getElementById('queuePlaylistToggleContainer').style.display = isPlaylists ? 'flex' : 'none';
+            document.getElementById('queuePlaylistToggleHelp').style.display = isPlaylists ? 'block' : 'none';
+            document.getElementById('queueRatingModeContainer').style.display = isQueue ? 'block' : 'none';
 
-            // Lock dial controls in playlists mode — carousel handles rotate/press itself
+            // Lock dial controls when the mode drives its own rotate/press behaviour
             const dialAction = document.getElementById('dialAction');
             const dialPressAction = document.getElementById('dialPressAction');
             const ratingModeContainer = document.getElementById('ratingModeContainer');
-            dialAction.disabled = isPlaylists;
-            dialPressAction.disabled = isPlaylists;
-            dialAction.style.opacity = isPlaylists ? '0.4' : '';
-            dialPressAction.style.opacity = isPlaylists ? '0.4' : '';
-            document.getElementById('dialActionHelp').textContent = isPlaylists
-                ? 'Locked — rotate browses playlists, press plays selection'
-                : 'What the physical dial does when rotated';
-            document.getElementById('dialPressActionHelp').textContent = isPlaylists
-                ? 'Locked — press plays the selected playlist'
-                : 'What happens when the dial is pressed';
-            if (isPlaylists) ratingModeContainer.style.display = 'none';
+            dialAction.disabled = isLocked;
+            dialPressAction.disabled = isLocked;
+            dialAction.style.opacity = isLocked ? '0.4' : '';
+            dialPressAction.style.opacity = isLocked ? '0.4' : '';
+
+            if (isPlaylists) {
+                document.getElementById('dialActionHelp').textContent = 'Locked \u2014 rotate browses playlists, press plays selection';
+                document.getElementById('dialPressActionHelp').textContent = 'Locked \u2014 press plays the selected playlist';
+            } else if (isQueue) {
+                document.getElementById('dialActionHelp').textContent = 'Locked \u2014 rotate scrolls queue, press removes focused track';
+                document.getElementById('dialPressActionHelp').textContent = 'Locked \u2014 press removes the focused track from the queue';
+            } else {
+                document.getElementById('dialActionHelp').textContent = 'What the physical dial does when rotated';
+                document.getElementById('dialPressActionHelp').textContent = 'What happens when the dial is pressed';
+            }
+
+            if (isLocked) ratingModeContainer.style.display = 'none';
             else updateRatingModeVisibility();
         }
 
@@ -443,6 +475,8 @@
                 displayMode: document.getElementById('displayMode').value,
                 carouselStyle: document.getElementById('carouselStyle').value,
                 carouselShuffle: document.getElementById('carouselShuffle').checked,
+                queuePlaylistToggle: document.getElementById('queuePlaylistToggle').checked,
+                queueRatingMode: document.getElementById('queueRatingMode').value,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
                 ratingMode: document.getElementById('ratingMode').value,
@@ -497,6 +531,8 @@
         });
         document.getElementById('carouselStyle').addEventListener('change', saveSettings);
         document.getElementById('carouselShuffle').addEventListener('change', saveSettings);
+        document.getElementById('queuePlaylistToggle').addEventListener('change', saveSettings);
+        document.getElementById('queueRatingMode').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
         document.getElementById('dialAction').addEventListener('change', function() {
             updateRatingModeVisibility();
