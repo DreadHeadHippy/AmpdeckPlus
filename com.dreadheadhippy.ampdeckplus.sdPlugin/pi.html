@@ -476,7 +476,15 @@
 
                 // Open auth URL in browser
                 const authUrl = `https://app.plex.tv/auth#?clientID=${encodeURIComponent(PLEX_CLIENT_ID)}&code=${encodeURIComponent(pin)}&context[device][product]=Ampdeck%2B`;
-                window.open(authUrl, '_blank');
+                // Open auth URL via Stream Deck host so it launches in the system
+                // default browser, not inside the sandboxed CEF Property Inspector.
+                // window.open() inside CEF can block for ~60s and opens a restricted
+                // webview where third-party Plex login providers are greyed out.
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    websocket.send(JSON.stringify({ event: 'openUrl', payload: { url: authUrl } }));
+                } else {
+                    window.open(authUrl, '_blank');
+                }
 
                 // Show waiting message
                 authBtn.textContent = 'Waiting for authorization...';

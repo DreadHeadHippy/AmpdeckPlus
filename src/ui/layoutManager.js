@@ -89,47 +89,57 @@ export function renderStripLayout(context) {
     const labelSize = Math.max(14, Math.round(fontSize * 0.85));
     const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, effectiveAccent);
 
+    const showLabel = settings.showStripLabel !== false; // default true
     const labelColor = isDimmed ? stripSecondary : textColor;
     const textDisplayColor = isDimmed ? stripSecondary : textColor;
 
     // Always use pixmap for displayText for consistent rendering
     const textAreaH = fontSize + 8;
     const labelHeight = labelSize + 4;
-    const progressBarHeight = 5;
+    const progressBarHeight = 10;
 
-    // Pin progress bar to the bottom (matching Queue mode)
-    const progressY = 95;
-    // 3 equal gaps: above label, between label & text, between text & bar
-    const gap = (progressY - labelHeight - textAreaH) / 3;
-    const labelY = gap;
-    const textY = gap + labelHeight + gap;
-    
-    const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
-    
+    // Pin progress bar a few pixels from the bottom
+    const progressY = 90;
+    let labelY, textY;
+    if (showLabel) {
+        // 3 equal gaps: above label, between label & text, between text & bar
+        const gap = (progressY - labelHeight - textAreaH) / 3;
+        labelY = gap;
+        textY = gap + labelHeight + gap;
+    } else {
+        textY = (progressY - textAreaH) / 2;
+    }
+
+    const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}|${showLabel}`;
+
     if (state.lastLayoutState[context] !== layoutKey) {
         state.lastLayoutState[context] = layoutKey;
+        const items = [];
+        if (showLabel) {
+            items.push({
+                key: 'label',
+                type: 'text',
+                rect: [0, labelY, 200, labelHeight],
+                font: { size: labelSize, weight: 700 },
+                color: labelColor,
+                alignment: 'center'
+            });
+        }
+        items.push(
+            {
+                key: 'displayText',
+                type: 'pixmap',
+                rect: [0, textY, 200, textAreaH]
+            },
+            {
+                key: 'progressBar',
+                type: 'pixmap',
+                rect: [0, progressY, 200, progressBarHeight]
+            }
+        );
         setFeedbackLayout(context, {
             id: 'com.dreadheadhippy.ampdeckplus.layout',
-            items: [
-                {
-                    key: 'label',
-                    type: 'text',
-                    rect: [0, labelY, 200, labelHeight],
-                    font: { size: labelSize, weight: 700 },
-                    color: labelColor,
-                    alignment: 'center'
-                },
-                {
-                    key: 'displayText',
-                    type: 'pixmap',
-                    rect: [0, textY, 200, textAreaH]
-                },
-                {
-                    key: 'progressBar',
-                    type: 'pixmap',
-                    rect: [0, progressY, 200, progressBarHeight]
-                }
-            ]
+            items: items
         });
     }
 
@@ -147,11 +157,9 @@ export function renderStripLayout(context) {
         textImage = renderStaticText(text, fontSize, textDisplayColor);
     }
 
-    setFeedback(context, {
-        label: label,
-        displayText: textImage,
-        progressBar: progressBar
-    });
+    const feedback = { displayText: textImage, progressBar: progressBar };
+    if (showLabel) feedback.label = label;
+    setFeedback(context, feedback);
 }
 
 /**
@@ -173,10 +181,10 @@ function renderQueueBrowser(context, settings, accentColor, textColor, stripSeco
     const effectiveAccent = isDimmed ? stripSecondary : accentColor;
 
     const HEADER_H = 11;
-    const ROW_H    = 28;
+    const ROW_H    = 26;
     const ROWS     = 3;
-    const BAR_H    = 5;
-    // Layout: 11 + 28×3 + 4 = 99px
+    const BAR_H    = 10;
+    // Layout: 11 + 26×3 + 5 = 94px
 
     const canvas = document.createElement('canvas');
     canvas.width = 200; canvas.height = 100;
@@ -329,7 +337,7 @@ function renderQueueBrowser(context, settings, accentColor, textColor, stripSeco
     const totalPanels = parseInt(settings.progressTotalPanels) || 3;
     const position    = parseInt(settings.progressPosition)    || 1;
     const progress    = state.displayProgress;
-    const barY        = HEADER_H + ROW_H * ROWS; // y=95
+    const barY        = 90; // match other strip modes
     ctx.fillStyle = COLORS.DARK_GRAY;
     ctx.fillRect(0, barY, 200, BAR_H);
     if (position > 0 && position <= totalPanels) {
@@ -405,10 +413,10 @@ function renderPlaylistCarouselPoster(context, carousel, accentColor) {
     const prevPlaylist = n > 1 ? playlists[prevIdx] : null;
     const nextPlaylist = n > 1 ? playlists[nextIdx] : null;
 
-    // Pin progress bar at the same bottom position as Queue and text modes (y=95, h=5).
+    // Pin progress bar at the same bottom position as Queue and text modes (y=90, h=5).
     const NAME_H = 12;
-    const PROG_Y = 95;
-    const PROG_H = 5;
+    const PROG_Y = 90;
+    const PROG_H = 10;
     const ART_Y = NAME_H;
     const ART_H = PROG_Y - NAME_H; // art zone between name bar and progress bar
     // Scale poster sizes proportionally to fit art zone (reference: CH=74, SH=50 at ART_H=84)
@@ -592,45 +600,55 @@ function renderPlaylistCarousel(context, settings, fontSize, totalPanels, positi
         text = carousel.playlists[idx].title;
     }
 
+    const showLabel = settings.showStripLabel !== false; // default true
     const labelSize = Math.max(14, Math.round(fontSize * 0.85));
     const progressBar = createProgressBarSegment(position, totalPanels, state.displayProgress, accentColor);
     const textAreaH = fontSize + 8;
     const labelHeight = labelSize + 4;
-    const progressBarHeight = 5;
+    const progressBarHeight = 10;
 
-    // Pin progress bar to the bottom (matching Queue mode)
-    const progressY = 95;
-    // 3 equal gaps: above label, between label & text, between text & bar
-    const gap = (progressY - labelHeight - textAreaH) / 3;
-    const labelY = gap;
-    const textY = gap + labelHeight + gap;
+    // Pin progress bar a few pixels from the bottom
+    const progressY = 90;
+    let labelY, textY;
+    if (showLabel) {
+        // 3 equal gaps: above label, between label & text, between text & bar
+        const gap = (progressY - labelHeight - textAreaH) / 3;
+        labelY = gap;
+        textY = gap + labelHeight + gap;
+    } else {
+        textY = (progressY - textAreaH) / 2;
+    }
 
-    const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}`;
+    const layoutKey = `px|${labelColor}|${labelSize}|${textAreaH}|${showLabel}`;
 
     if (state.lastLayoutState[context] !== layoutKey) {
         state.lastLayoutState[context] = layoutKey;
+        const items = [];
+        if (showLabel) {
+            items.push({
+                key: 'label',
+                type: 'text',
+                rect: [0, labelY, 200, labelHeight],
+                font: { size: labelSize, weight: 700 },
+                color: labelColor,
+                alignment: 'center'
+            });
+        }
+        items.push(
+            {
+                key: 'displayText',
+                type: 'pixmap',
+                rect: [0, textY, 200, textAreaH]
+            },
+            {
+                key: 'progressBar',
+                type: 'pixmap',
+                rect: [0, progressY, 200, progressBarHeight]
+            }
+        );
         setFeedbackLayout(context, {
             id: 'com.dreadheadhippy.ampdeckplus.layout',
-            items: [
-                {
-                    key: 'label',
-                    type: 'text',
-                    rect: [0, labelY, 200, labelHeight],
-                    font: { size: labelSize, weight: 700 },
-                    color: labelColor,
-                    alignment: 'center'
-                },
-                {
-                    key: 'displayText',
-                    type: 'pixmap',
-                    rect: [0, textY, 200, textAreaH]
-                },
-                {
-                    key: 'progressBar',
-                    type: 'pixmap',
-                    rect: [0, progressY, 200, progressBarHeight]
-                }
-            ]
+            items: items
         });
     }
 
@@ -647,11 +665,9 @@ function renderPlaylistCarousel(context, settings, fontSize, totalPanels, positi
         textImage = renderStaticText(text, fontSize, textDisplayColor);
     }
 
-    setFeedback(context, {
-        label: label,
-        displayText: textImage,
-        progressBar: progressBar
-    });
+    const feedback = { displayText: textImage, progressBar: progressBar };
+    if (showLabel) feedback.label = label;
+    setFeedback(context, feedback);
 }
 
 /**
@@ -746,11 +762,11 @@ function renderScrollingText(context, text, fontSize, color) {
 function createProgressBarSegment(position, totalPanels, progress, color) {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
-    canvas.height = 4;
+    canvas.height = 10;
     const ctx = canvas.getContext('2d');
     
     ctx.fillStyle = COLORS.DARK_GRAY;
-    ctx.fillRect(0, 0, 200, 4);
+    ctx.fillRect(0, 0, 200, 10);
 
     if (position > 0 && position <= totalPanels) {
         const segSize = 100 / totalPanels;
@@ -762,7 +778,7 @@ function createProgressBarSegment(position, totalPanels, progress, color) {
             const fillWidth = Math.round((progressInSeg / segSize) * 200);
             if (fillWidth > 0) {
                 ctx.fillStyle = color;
-                ctx.fillRect(0, 0, fillWidth, 4);
+                ctx.fillRect(0, 0, fillWidth, 10);
             }
         }
     }

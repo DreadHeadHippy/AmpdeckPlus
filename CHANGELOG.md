@@ -4,6 +4,18 @@
 
 ---
 
+## [2.0.16] - 2026-04-01
+
+### ✨ New Features
+- **"Load Playlists" button on Playlist Carousel tile** — The strip Property Inspector now has a **"Load Playlists"** button when the display mode is set to "Playlists (Carousel)". Clicking it fetches your current audio playlists from the Plex server and immediately refreshes the live carousel on the Stream Deck — useful when you've added a new playlist in Plexamp and want it to appear without restarting anything.
+- **"Show mode label" toggle on touch strip tiles** — A new **"Show mode label (ARTIST, ALBUM, TRACK…)"** checkbox in the strip Property Inspector. When unchecked, the label row (e.g. `ARTIST`, `TRACK`) is hidden and the scrolling text is vertically centered in the freed space. Applies to all text-based display modes; defaults to checked.
+
+### 🎨 Visual Polish
+- **Progress bar raised 5px** — The touch strip progress bar across all modes (text strips, Playlist Carousel, Queue browser) now sits at y=90 instead of y=95, giving it a small visual separation from the very bottom edge of the strip.
+- **Progress bar height doubled to 10px** — The progress bar is now 10px tall (previously 5px), making it more prominent and easier to read at a glance.
+
+---
+
 ## [2.0.15] - 2026-03-27
 
 ### ✨ New Features

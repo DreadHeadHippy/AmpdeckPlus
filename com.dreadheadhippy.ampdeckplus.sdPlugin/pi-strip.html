@@ -99,6 +99,28 @@
         #status.error { border-left: 3px solid #f44336; }
         #status.warning { border-left: 3px solid #ff9800; }
         #status.info { border-left: 3px solid #2196F3; }
+        .collapse-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .collapse-toggle::before {
+            content: '\25B6';
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        .collapse-toggle.open::before {
+            transform: rotate(90deg);
+        }
+        .collapsible-content {
+            display: none;
+        }
+        .collapsible-content.open {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -132,6 +154,11 @@
     </div>
     <div id="carouselShuffleHelp" class="help-text" style="display: none; margin-top: -6px; margin-bottom: 10px;">When checked, pressing to play a playlist will shuffle it</div>
 
+    <div id="loadPlaylistsContainer" style="display: none; margin-bottom: 10px;">
+        <button id="loadPlaylistsBtn">Load Playlists</button>
+        <div class="help-text" style="margin-top: 4px;">Fetches audio playlists from your Plex server. Requires Server URL &amp; Plex Token to be set below.</div>
+    </div>
+
     <div class="sdpi-item-checkbox" id="queuePlaylistToggleContainer" style="display: none;">
         <input type="checkbox" id="queuePlaylistToggle">
         <label for="queuePlaylistToggle">Toggle Queue / Playlist with touch</label>
@@ -159,6 +186,12 @@
         </select>
         <div class="help-text">Adjust text size on the dial</div>
     </div>
+
+    <div class="sdpi-item-checkbox">
+        <input type="checkbox" id="showStripLabel" checked>
+        <label for="showStripLabel">Show mode label (ARTIST, ALBUM, TRACK…)</label>
+    </div>
+    <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When unchecked, the label row is hidden and the text is centered in the available space</div>
 
     <div class="sdpi-heading">Dial Controls</div>
 
@@ -238,7 +271,9 @@
     </div>
     <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When off, accent colors stay orange</div>
 
-    <div class="sdpi-heading">Plexamp Player</div>
+    <!-- Advanced Settings (Manual Configuration) -->
+    <div class="sdpi-heading collapse-toggle" id="stripAdvancedToggle">Advanced Settings</div>
+    <div class="collapsible-content" id="stripAdvancedContent">
 
     <div class="sdpi-item-checkbox">
         <input type="checkbox" id="useLocalPlayer">
@@ -254,28 +289,23 @@
         <div class="help-text" id="playerUrlHelp">Local Plexamp address. Default: http://localhost:32500 (headless). Desktop users may need a different port.</div>
     </div>
 
-    <div class="sdpi-heading">Plex Server</div>
-    
     <div class="sdpi-item">
         <label>Server URL</label>
         <input type="text" id="plexServerUrl" placeholder="http://your-server-ip:32400">
         <div class="help-text">Your Plex server address with port (used for metadata and album art)</div>
     </div>
-    
+
     <div class="sdpi-item">
         <label>Plex Token</label>
         <input type="password" id="plexToken" placeholder="Your Plex token">
         <div class="help-text">Find in Plex settings or browser network tab</div>
     </div>
-    
+
     <div class="sdpi-item">
         <label>Client Name</label>
         <input type="text" id="clientName" placeholder="e.g. My PC">
         <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
     </div>
-
-
-    <div class="sdpi-heading">Advanced</div>
 
     <div class="sdpi-item">
         <label>Time Offset (ms)</label>
@@ -288,6 +318,8 @@
         <label for="debugMode">Enable debug logging</label>
     </div>
     <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">Logs detailed API requests and responses to the browser console</div>
+
+    </div>
 
     <div class="btn-row">
         <button id="testPlayerBtn">Test Player</button>
@@ -327,6 +359,7 @@
             document.getElementById('carouselShuffle').checked = settings.carouselShuffle === true;
             document.getElementById('queuePlaylistToggle').checked = settings.queuePlaylistToggle === true;
             document.getElementById('queueRatingMode').value = settings.queueRatingMode || 'half';
+            document.getElementById('showStripLabel').checked = settings.showStripLabel !== false;
             const useLocalInit = settings.useLocalPlayer === true;
             document.getElementById('useLocalPlayer').checked = useLocalInit;
             togglePlayerUrlField(useLocalInit);
@@ -399,6 +432,7 @@
             document.getElementById('carouselStyleContainer').style.display = isPlaylists ? 'block' : 'none';
             document.getElementById('carouselShuffleContainer').style.display = isPlaylists ? 'flex' : 'none';
             document.getElementById('carouselShuffleHelp').style.display = isPlaylists ? 'block' : 'none';
+            document.getElementById('loadPlaylistsContainer').style.display = isPlaylists ? 'block' : 'none';
             document.getElementById('queuePlaylistToggleContainer').style.display = isPlaylists ? 'flex' : 'none';
             document.getElementById('queuePlaylistToggleHelp').style.display = isPlaylists ? 'block' : 'none';
             document.getElementById('queueRatingModeContainer').style.display = isQueue ? 'block' : 'none';
@@ -477,6 +511,7 @@
                 carouselShuffle: document.getElementById('carouselShuffle').checked,
                 queuePlaylistToggle: document.getElementById('queuePlaylistToggle').checked,
                 queueRatingMode: document.getElementById('queueRatingMode').value,
+                showStripLabel: document.getElementById('showStripLabel').checked,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
                 ratingMode: document.getElementById('ratingMode').value,
@@ -532,7 +567,75 @@
         document.getElementById('carouselStyle').addEventListener('change', saveSettings);
         document.getElementById('carouselShuffle').addEventListener('change', saveSettings);
         document.getElementById('queuePlaylistToggle').addEventListener('change', saveSettings);
+
+        document.getElementById('loadPlaylistsBtn').addEventListener('click', function() {
+            const serverUrl = document.getElementById('plexServerUrl').value.trim();
+            const token = document.getElementById('plexToken').value.trim();
+            loadStripPlaylists(serverUrl, token);
+        });
+
+        async function loadStripPlaylists(serverUrl, token) {
+            const statusEl = document.getElementById('status');
+
+            if (!serverUrl || !token) {
+                statusEl.className = 'show error';
+                statusEl.textContent = 'Enter Server URL and Plex Token in the Advanced Settings section below, then click Load Playlists.';
+                return;
+            }
+
+            const urlValidation = validateUrl(serverUrl, false);
+            if (!urlValidation.valid) {
+                statusEl.className = 'show error';
+                statusEl.textContent = 'Invalid server URL: ' + urlValidation.error;
+                return;
+            }
+
+            let parsedServer;
+            try {
+                parsedServer = new URL(serverUrl);
+            } catch (e) {
+                statusEl.className = 'show error';
+                statusEl.textContent = 'Invalid server URL.';
+                return;
+            }
+            const safeBase = parsedServer.origin;
+
+            statusEl.className = 'show info';
+            statusEl.textContent = 'Fetching playlists\u2026';
+
+            try {
+                const requestUrl = new URL('/playlists', safeBase);
+                requestUrl.searchParams.set('playlistType', 'audio');
+                requestUrl.searchParams.set('X-Plex-Token', token);
+                const response = await fetch(requestUrl.toString(), {
+                    headers: { 'X-Plex-Token': token }
+                });
+
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const items = doc.querySelectorAll('Playlist');
+
+                if (items.length === 0) {
+                    statusEl.className = 'show warning';
+                    statusEl.textContent = 'No audio playlists found on this server.';
+                    return;
+                }
+
+                statusEl.className = 'show success';
+                statusEl.textContent = '\u2713 Found ' + items.length + ' playlist(s). Reloading carousel\u2026';
+                // Sending settings triggers didReceiveSettings in the plugin,
+                // which calls loadCarouselPlaylists to refresh the live carousel.
+                saveSettings();
+            } catch (e) {
+                statusEl.className = 'show error';
+                statusEl.textContent = '\u2717 Failed to load playlists: ' + e.message;
+            }
+        }
         document.getElementById('queueRatingMode').addEventListener('change', saveSettings);
+        document.getElementById('showStripLabel').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
         document.getElementById('dialAction').addEventListener('change', function() {
             updateRatingModeVisibility();
@@ -653,6 +756,22 @@
                 statusEl.textContent = '✗ Server connection failed: ' + e.message;
             }
         });
+
+        // Collapsible advanced settings
+        document.getElementById('stripAdvancedToggle').addEventListener('click', function() {
+            const content = document.getElementById('stripAdvancedContent');
+            const toggle = document.getElementById('stripAdvancedToggle');
+            content.classList.toggle('open');
+            toggle.classList.toggle('open');
+        });
     </script>
+
+    <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #3a3a3a; text-align: center;">
+        <a href="#" onclick="if(websocket && websocket.readyState === WebSocket.OPEN) { websocket.send(JSON.stringify({ event: 'openUrl', payload: { url: 'https://ko-fi.com/dreadheadhippy' } })); } return false;"
+           style="display: inline-block; color: #9B9B9B; font-size: 11px; text-decoration: none; opacity: 0.6; transition: opacity 0.2s;"
+           onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+            &#9749; Enjoying Ampdeck+? Support development on Ko-fi
+        </a>
+    </div>
 </body>
 </html>
