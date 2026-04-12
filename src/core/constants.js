@@ -4,7 +4,7 @@
  */
 
 // Version
-export const VERSION = '2.0.14';
+export const VERSION = '2.0.17';
 
 // Action identifiers
 export const ACTIONS = {
@@ -38,7 +38,8 @@ export const TIMING = {
     RATING_SAVE_DELAY: 1500,      // Debounce delay for rating saves (ms)
     SCROLL_PAUSE: 2000,            // Pause before scrolling text (ms)
     RECONNECT_DELAY: 3000,         // WebSocket reconnect delay (ms)
-    RECONNECT_MAX_DELAY: 30000     // Maximum reconnect delay (ms)
+    RECONNECT_MAX_DELAY: 30000,    // Maximum reconnect delay (ms)
+    QUEUE_BROWSER_MAX: 100         // Hard cap on Up Next queue items stored in memory
 };
 
 // Scrolling text

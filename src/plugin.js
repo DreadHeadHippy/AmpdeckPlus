@@ -230,17 +230,30 @@ function onDidReceiveSettings(data) {
 function onKeyDown(data) {
     const { context, action } = data;
 
-    if (state.playbackState === 'stopped') {
-        return;
-    }
-
-    // Track button hold for seek functionality
+    // Initialize hold state before the stopped check so keyUp can still fire
+    // actions that are valid from stopped state (e.g. PLAYLIST launches Plexamp).
     state.buttonHoldState[context] = {
         pressTime: Date.now(),
         action: action,
         didSeek: false,
         isHolding: false
     };
+
+    if (state.playbackState === 'stopped' || state.playbackState === 'idle') {
+        return;
+    }
+
+    // Long-press stop for Play/Pause and Album Art (mirrors Plexamp mobile behaviour)
+    if (action === ACTIONS.PLAY_PAUSE || action === ACTIONS.ALBUM_ART) {
+        const thisHoldState = state.buttonHoldState[context];
+        setTimeout(async () => {
+            const holdState = state.buttonHoldState[context];
+            if (!holdState || holdState !== thisHoldState || holdState.didStop) return;
+            holdState.didStop = true;
+            await playbackController.stop();
+            updateAllDisplays();
+        }, TIMING.HOLD_THRESHOLD);
+    }
 
     // Long-press mute/unmute for Volume Down
     if (action === ACTIONS.VOLUME_DOWN) {
@@ -417,8 +430,8 @@ function onKeyUp(data) {
         return;
     }
 
-    // If we were seeking or muting, don't also fire the tap action
-    if (holdState.didSeek || holdState.didMute) {
+    // If we were seeking, muting, or stopping, don't also fire the tap action
+    if (holdState.didSeek || holdState.didMute || holdState.didStop) {
         // Reset button to normal state immediately so the display reflects the
         // post-action volume rather than whatever was cached before the hold.
         if (action === ACTIONS.PREVIOUS) {
@@ -472,7 +485,7 @@ function onDialRotate(data) {
         return;
     }
 
-    if (state.playbackState === 'stopped') return; // Plexamp not running — ignore volume/skip/rating dial input
+    if (state.playbackState === 'stopped' || state.playbackState === 'idle') return; // Plexamp not running — ignore volume/skip/rating dial input
 
     // Handle dial rotation based on user's configured action
     if (dialAction === 'skip') {
@@ -547,12 +560,12 @@ function onDialDown(data) {
 
     if (effectiveMode === 'queue') {
         // Record press; onDialUp will fire the remove action
-        if (state.playbackState === 'stopped') return;
+        if (state.playbackState === 'stopped' || state.playbackState === 'idle') return;
         state.dialHoldState[context] = { pressTime: Date.now() };
         return;
     }
 
-    if (state.playbackState === 'stopped') return; // togglePlayPause needs Plexamp running
+    if (state.playbackState === 'stopped' || state.playbackState === 'idle') return; // togglePlayPause needs Plexamp running
     playbackController.togglePlayPause();
 }
 
@@ -639,7 +652,7 @@ function onTouchTap(data) {
     }
     
     // Tap anywhere on touch strip to play/pause
-    if (state.playbackState === 'stopped') return; // Plexamp not running
+    if (state.playbackState === 'stopped' || state.playbackState === 'idle') return; // Plexamp not running
     playbackController.togglePlayPause();
 }
 
@@ -648,7 +661,8 @@ function onTouchTap(data) {
 // ============================================
 
 async function handleButtonAction(action, context) {
-    if (state.playbackState === 'stopped') return; // Plexamp not running
+    // PLAYLIST is allowed when stopped or idle — it launches Plexamp and starts playback.
+    if ((state.playbackState === 'stopped' || state.playbackState === 'idle') && action !== ACTIONS.PLAYLIST) return;
 
     switch (action) {
         case ACTIONS.ALBUM_ART:
@@ -818,8 +832,9 @@ async function loadQueueItems(context, { forceRefresh = false, currentRatingKey 
             const byRating = items.findIndex(i => i.ratingKey === currentRatingKey);
             if (byRating >= 0) selectedIdx = byRating;
         }
-        // "Up next" = only the tracks after the currently playing one
-        const upNext = selectedIdx >= 0 ? items.slice(selectedIdx + 1) : items;
+        // "Up next" = only the tracks after the currently playing one, capped for performance
+        const upNext = (selectedIdx >= 0 ? items.slice(selectedIdx + 1) : items)
+            .slice(0, TIMING.QUEUE_BROWSER_MAX);
         const upNextWithQueueID = upNext.map(i => ({ ...i, queueID }));
 
         const fresh     = state.getQueueBrowserState(context);
@@ -944,7 +959,16 @@ async function pollTimeline() {
         const timeline = await plexConnection.fetchTimeline();
         lastSuccessfulPoll = Date.now();
         
-        if (timeline && timeline.state !== 'stopped') {
+        if (timeline && timeline.state === 'stopped') {
+            // Plexamp is running but nothing is queued/playing.
+            // Use 'idle' so buttons stay lit but track info is cleared.
+            // 'stopped' is reserved for Plexamp being unreachable/not running.
+            if (state.playbackState !== 'idle') {
+                state.playbackState = 'idle';
+                state.clearTrackInfo();
+                state.lastPositionTimestamp = 0;
+            }
+        } else if (timeline && timeline.state !== 'stopped') {
             metadataCache.updateFromTimeline(timeline);
             // Refresh queue-browser contexts and reset Plexamp's post-skip internal buffer
             if (timeline.ratingKey !== prevRatingKey) {

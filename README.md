@@ -29,11 +29,11 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ✨ What's New in v2.0.16
+## ✨ What's New in v2.0.17
 
-- **"Load Playlists" button on the Playlist Carousel tile** — Refresh your carousel with newly added playlists directly from the strip Property Inspector, no restart needed.
-- **"Show mode label" toggle** — Hide the ARTIST / ALBUM / TRACK / TIME label row on any touch strip tile and let the text take over the full available space.
-- **Progress bar raised and doubled in size** — The touch strip progress bar now sits 10px above the bottom edge and is 10px tall (up from 5px), making it clearer at a glance across all strip modes.
+- **Long-press Play/Pause to stop** — Hold the Play/Pause or Album Art button for 400ms to stop playback, just like Plexamp. A short tap still toggles play/pause.
+- **Playlist button works from stopped state** — The Playlist button & the Playlists (Carousel) from the touch strip can now launch playlists even when Plexamp has nothing queued or playing.
+- **"Not Playing" after stopping** — Stopping playback clears track info and shows "Not Playing" on the strip and Track Title button, while keeping all buttons fully lit. The dimmed look is reserved for when Plexamp is unreachable or not running.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -42,7 +42,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 ## Features
 
 - **Album Art** — Live album art on any LCD key with a pause overlay. Tap to play/pause. When playback is paused, the album art displays with a gray overlay.
-- **Playlist Button** — Dedicated key action to assign playlists. Assign playlists to buttons, allowing you to start your playlists with the press of a button. Enable **Start playlist shuffled** to shuffle on play.
+- **Playlist Button** — Dedicated key action to assign playlists. Assign playlists to buttons, allowing you to start your playlists with the press of a button — even when Plexamp has nothing playing. Enable **Start playlist shuffled** to shuffle on play.
 - **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Enable **Start playlist shuffled** to shuffle on play. Click **Load Playlists** in the tile settings to refresh the carousel with any new playlists you've added in Plexamp.
 - **Queue (Up Next) browser** — Touch strip mode that shows the next 3 upcoming tracks as a live scrollable list with title, artist, and star rating. Rotate the dial to move the cursor, press to remove the focused track from the queue. The first item (pre-buffered by Plexamp) is shown with a lock icon and cannot be removed. Enable **Toggle Queue / Playlist with touch** in the Playlist Carousel settings to tap between the carousel and queue views without leaving the strip.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability. Toggle the **"Show mode label"** checkbox in the tile settings to hide the ARTIST / ALBUM / TRACK label row and expand the text into the full available space.
@@ -52,7 +52,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
 - **Spanning Progress Bar** — A single progress bar that flows across all 4 dials, with colors extracted from album art.
 - **Volume Up / Down** — Dedicated buttons with a canvas-drawn speaker icon. The icon fills with the album art accent color from the bottom proportional to current volume. Hold **Volume Down** for 400ms to mute and pause; hold again to restore volume and resume. Enable **"Fade Out on hold-to-mute"** in the button settings for a gradual fade instead of an instant cut — ideal for streaming. Configure the fade duration from 1–30 seconds (default: 3s).
-- **Play / Pause** — Dedicated button with instant visual feedback.
+- **Play / Pause** — Dedicated button with instant visual feedback. **Hold for 400ms to stop playback** (mirrors the Plexamp mobile long-press gesture); a short tap continues to toggle play/pause.
 - **Previous / Next** — Tap to skip tracks. Hold for 400ms to activate seek mode with **animated directional arrows** that smoothly travel across the button and wrap around Pac-Man style. Previous arrows move left, Next arrows move right. Configurable icon size (40-72px) with four preset options.
 - **Paused State Visual Feedback** — When playback is paused, all buttons turn gray automatically: Album Art overlay, Navigation buttons, and all other action tiles provide clear visual indication.
 - **Shuffle** — Toggle shuffle on/off with visual state indicator.

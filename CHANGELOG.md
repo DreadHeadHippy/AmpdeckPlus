@@ -4,6 +4,18 @@
 
 ---
 
+## [2.0.17] - 2026-04-11
+
+### ✨ New Features
+- **Long-press Play/Pause to stop** — Holding the Play/Pause button (or Album Art button) for 400ms now stops playback, mirroring the same gesture in Plexamp. A short tap still toggles play/pause as before.
+- **Playlist button works from stopped state** — The Playlist button & the Playlists (Carousel) from the touch strip can now start a playlists even when Plexamp has nothing playing or queued. Previously, pressing the button while stopped was silently ignored.
+- **Up Next queue capped at 100 tracks** — The Queue (Up Next) browser now stores a maximum of 100 tracks in memory. Large playlists (e.g. 8000+ tracks) previously loaded the entire remaining queue into memory on every track change; the cap keeps memory usage and render time stable regardless of playlist size.
+
+### 🎨 Visual Polish
+- **"Not Playing" state after stopping** — When playback is stopped via the long-press gesture (or when Plexamp is running but has nothing queued), buttons remain fully lit and track info is cleared, showing **"Not Playing"** on the touch strip and Track Title button. The dimmed "disconnected" look is reserved exclusively for when Plexamp itself is unreachable or not running.
+
+---
+
 ## [2.0.16] - 2026-04-01
 
 ### ✨ New Features

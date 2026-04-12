@@ -149,6 +149,28 @@ class StateManager {
         }
     }
 
+    // Clear track info without touching playbackState.
+    // Used when stopping playback while Plexamp is still running ('idle' state),
+    // so the UI shows "Not Playing" with lit buttons rather than the dimmed "stopped" look.
+    clearTrackInfo() {
+        this.currentTrack = null;
+        this.currentPosition = 0;
+        this.trackDuration = 0;
+        this.lastPositionTimestamp = 0;
+        this.albumTrackCount = null;
+        this.lastParentRatingKey = null;
+        this.lastTimelineRatingKey = null;
+        this.lastArtPath = null;
+        this.queuePosition = null;
+        this.queueTotal = null;
+        this.playQueueIsPlaylist = false;
+        this.currentContainerKey = null;
+        this.currentAlbumArt = null;
+        this.dominantColor = "#E5A00D";
+        this.currentRating = 0;
+        this.currentPlaylistName = null;
+    }
+
     clearTrack() {
         this.currentTrack = null;
         this.playbackState = "stopped";

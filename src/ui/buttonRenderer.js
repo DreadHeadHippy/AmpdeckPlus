@@ -961,8 +961,10 @@ export function renderTrackTitle(context) {
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.font         = '16px sans-serif';
-        ctx.fillStyle    = COLORS.DARK_GRAY;
-        ctx.fillText('No Track', S / 2, S / 2);
+        // When Plexamp is unreachable (stopped): dark gray "No Track"
+        // When Plexamp is running but idle: normal text color "Not Playing"
+        ctx.fillStyle    = isDimmed ? COLORS.DARK_GRAY : getTextColor();
+        ctx.fillText(isDimmed ? 'No Track' : 'Not Playing', S / 2, S / 2);
         sendImage(context, canvas.toDataURL('image/png'));
         return;
     }

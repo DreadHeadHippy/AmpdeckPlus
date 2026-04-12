@@ -67,6 +67,23 @@ class PlaybackController {
     }
 
     /**
+     * Stop playback
+     */
+    async stop() {
+        try {
+            await plexConnection.playerCommand('/player/playback/stop');
+            // Use 'idle' — Plexamp is running but nothing is queued/playing.
+            // 'stopped' is reserved for Plexamp being unreachable/not running,
+            // which is what triggers the dimmed-button look.
+            state.playbackState = 'idle';
+            state.clearTrackInfo();
+            logger.debug('Playback stopped');
+        } catch (error) {
+            logger.error(`Failed to stop: ${error.message}`);
+        }
+    }
+
+    /**
      * Skip to next track
      */
     async skipNext() {
