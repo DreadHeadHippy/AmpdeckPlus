@@ -34,6 +34,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Long-press Play/Pause to stop** — Hold the Play/Pause or Album Art button for 400ms to stop playback, just like Plexamp. A short tap still toggles play/pause.
 - **Playlist button works from stopped state** — The Playlist button & the Playlists (Carousel) from the touch strip can now launch playlists even when Plexamp has nothing queued or playing.
 - **"Not Playing" after stopping** — Stopping playback clears track info and shows "Not Playing" on the strip and Track Title button, while keeping all buttons fully lit. The dimmed look is reserved for when Plexamp is unreachable or not running.
+- **Up Next queue capped at 100 tracks** — The Queue (Up Next) browser now stores a maximum of 100 tracks in memory. Large playlists (e.g. 8000+ tracks) previously loaded the entire remaining queue into memory on every track change; the cap keeps memory usage and render time stable regardless of playlist size.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
