@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.17';
+    const VERSION = '2.0.18';
 
     // Action identifiers
     const ACTIONS = {
@@ -2363,44 +2363,60 @@
         const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor$1();
         const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor$1();
 
+        const showRatingLabel = settings.showRatingLabel !== false; // default true
+
         if (state.currentTrack) {
             if (ratingMode === 'single') {
-                // Single-star mode: "RATING" label at top, large centered star below
+                // Single-star mode: optional "RATING" label, large centered star below
                 // 3 states matching Plexamp: empty ☆ (unrated) → ★ (liked=10) → ★̶ (disliked=2)
                 ctx.textAlign = 'center';
-                ctx.font = 'bold 26px sans-serif';
-                ctx.fillStyle = textColor;
-                ctx.fillText('RATING', 72, 32);
+
+                let starCenterY;
+                if (showRatingLabel) {
+                    ctx.font = 'bold 26px sans-serif';
+                    ctx.fillStyle = textColor;
+                    ctx.fillText('RATING', 72, 32);
+                    starCenterY = Math.round((40 + CANVAS.BUTTON_SIZE) / 2); // ≈92
+                } else {
+                    starCenterY = Math.round(CANVAS.BUTTON_SIZE / 2); // 72 — fully centered
+                }
 
                 ctx.textBaseline = 'middle';
-                ctx.font = 'bold 90px sans-serif';
+                ctx.font = `bold ${fontSize}px sans-serif`;
+                const scale = fontSize / 90;
 
                 if (state.currentRating === RATING.SINGLE_LIKED) {
                     // Liked: full ★ in accent color
                     ctx.fillStyle = accentColor;
-                    ctx.fillText('★', 72, 90);
+                    ctx.fillText('★', 72, starCenterY);
                 } else if (state.currentRating === RATING.SINGLE_DISLIKED) {
                     // Disliked: full ★ with diagonal "/" strikethrough in accent color
                     ctx.fillStyle = accentColor;
-                    ctx.fillText('★', 72, 90);
+                    ctx.fillText('★', 72, starCenterY);
                     ctx.strokeStyle = accentColor;
-                    ctx.lineWidth = 8;
+                    ctx.lineWidth = Math.max(2, Math.round(8 * scale));
                     ctx.lineCap = 'round';
                     ctx.beginPath();
-                    ctx.moveTo(38, 128);
-                    ctx.lineTo(108, 48);
+                    ctx.moveTo(72 - Math.round(34 * scale), starCenterY + Math.round(38 * scale));
+                    ctx.lineTo(72 + Math.round(36 * scale), starCenterY - Math.round(42 * scale));
                     ctx.stroke();
                 } else {
                     // Unrated: empty ☆ in text color
                     ctx.fillStyle = textColor;
-                    ctx.fillText('☆', 72, 90);
+                    ctx.fillText('☆', 72, starCenterY);
                 }
             } else {
-            // Display "RATING" label at top
+            // Conditionally display "RATING" label at top
             ctx.textAlign = "center";
-            ctx.font = "bold 26px sans-serif";
-            ctx.fillStyle = textColor;
-            ctx.fillText("RATING", 72, 32);
+            let contentY;
+            if (showRatingLabel) {
+                ctx.font = "bold 26px sans-serif";
+                ctx.fillStyle = textColor;
+                ctx.fillText("RATING", 72, 32);
+                contentY = 90;
+            } else {
+                contentY = Math.round(CANVAS.BUTTON_SIZE / 2); // 72 — fully centered
+            }
 
             // Display rating based on style preference
             const hasHalfStar = state.currentRating % 2 === 1;
@@ -2410,18 +2426,19 @@
                 // Stars only
                 const stars = formatRating(state.currentRating, ratingMode);
                 ctx.font = "bold " + fontSize + "px sans-serif";
+                ctx.textBaseline = "middle";
                 ctx.fillStyle = accentColor;
-                ctx.fillText(stars, 72, 90);
+                ctx.fillText(stars, 72, contentY);
             } else if (displayStyle === "numeric") {
                 // Numeric only (e.g., "4.5" or "4")
                 ctx.font = "bold " + fontSize + "px sans-serif";
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = accentColor;
                 if (state.currentRating === 0) {
-                    ctx.fillText("0", 72, 90);
+                    ctx.fillText("0", 72, contentY);
                 } else {
                     numericRating = hasHalfStar ? (state.currentRating / 2).toFixed(1) : (state.currentRating / 2).toString();
-                    ctx.fillText(numericRating, 72, 90);
+                    ctx.fillText(numericRating, 72, contentY);
                 }
             } else {
                 // Both - numeric with scale (e.g., "4.5/5" or "4/5")
@@ -2429,10 +2446,10 @@
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = accentColor;
                 if (state.currentRating === 0) {
-                    ctx.fillText("0/5", 72, 90);
+                    ctx.fillText("0/5", 72, contentY);
                 } else {
                     numericRating = hasHalfStar ? (state.currentRating / 2).toFixed(1) : (state.currentRating / 2).toString();
-                    ctx.fillText(numericRating + "/5", 72, 90);
+                    ctx.fillText(numericRating + "/5", 72, contentY);
                 }
             }
             } // end non-single block
@@ -3324,7 +3341,7 @@
         if (displayMode === 'playlists') {
             return renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary);
         } else if (displayMode === 'queue') {
-            return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary);
+            return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary, settings.queuePressAction || 'remove');
         } else if (state.currentTrack) {
             if (displayMode === 'artist') {
                 label = 'ARTIST';
@@ -3424,7 +3441,7 @@
      * Render the "Up Next" queue browser: scrollable text list with focused row highlighted.
      * Dial rotation moves the cursor; dial press removes the focused track from the queue.
      */
-    function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary) {
+    function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary, pressAction = 'remove') {
         const layoutKey = 'queue-browser';
         if (state.lastLayoutState[context] !== layoutKey) {
             state.lastLayoutState[context] = layoutKey;
@@ -3483,7 +3500,7 @@
                 if (itemIdx >= total) break;
                 const item      = qbs.items[itemIdx];
                 const isFocused = (row === focusedRow);
-                const isLocked  = (itemIdx === 0);
+                const isLocked  = (itemIdx === 0) && (pressAction === 'remove');
                 const rowY      = HEADER_H + row * ROW_H;
 
                 if (isFocused) {
@@ -3508,7 +3525,7 @@
                 const titleFont = `${isFocused ? 'bold ' : ''}${titleSize}px sans-serif`;
 
                 // Draw a padlock icon in the icon column (accent bar 0–3, title at 21)
-                if (itemIdx === 0) {
+                if (isLocked) {
                     // When focused: accent color lock pops against the grey row — clearly locked/special.
                     // When not focused: recede to 50% white so it doesn't compete with title text.
                     const iconColor = isFocused
@@ -3552,8 +3569,8 @@
                     ctx.fillRect(cx - 1.5, ky, 3, 3.5); // slot below circle
                 }
 
-                const titleX     = itemIdx === 0 ? 21 : 5;
-                const titleWidth = itemIdx === 0 ? 172 : 188;
+                const titleX     = isLocked ? 21 : 5;
+                const titleWidth = isLocked ? 172 : 188;
                 const rawTitle   = item.title || 'Unknown';
                 const titleText  = truncateText(ctx, rawTitle, titleFont, titleWidth);
                 ctx.font      = titleFont;
@@ -4409,7 +4426,7 @@
             return;
         }
 
-        // Long-press stop for Play/Pause and Album Art (mirrors Plexamp behaviour)
+        // Long-press stop for Play/Pause and Album Art (mirrors Plexamp mobile behaviour)
         if (action === ACTIONS.PLAY_PAUSE || action === ACTIONS.ALBUM_ART) {
             const thisHoldState = state.buttonHoldState[context];
             setTimeout(async () => {
@@ -4764,17 +4781,34 @@
 
             const qbs = state.getQueueBrowserState(context);
             if (!qbs || qbs.items.length === 0) return;
-            const removingIdx  = qbs.cursorIndex;
-            const removingItem = qbs.items[removingIdx];
-            if (!removingItem) return;
+            const targetIdx  = qbs.cursorIndex;
+            const targetItem = qbs.items[targetIdx];
+            if (!targetItem) return;
 
+            const pressAction = settings.queuePressAction || 'remove';
+
+            if (pressAction === 'play') {
+                // Skip to the highlighted track in the queue
+                plexConnection.playerCommand(
+                    '/player/playback/skipTo',
+                    { key: targetItem.key, playQueueItemID: targetItem.playQueueItemID }
+                )
+                    .then(() => loadQueueItems(context, { forceRefresh: true }))
+                    .catch(err => {
+                        logger.warn(`Queue skip failed: ${err.message}`);
+                        loadQueueItems(context, { forceRefresh: true });
+                    });
+                return;
+            }
+
+            // Default: remove from queue
             // The very next track (index 0) is pre-buffered by Plexamp and cannot be
             // reliably removed — kicking it causes a snap-back to the current song.
-            if (removingIdx === 0) return;
+            if (targetIdx === 0) return;
 
             // Instant removal from local list
-            const newItems  = qbs.items.filter((_, i) => i !== removingIdx);
-            const newCursor = Math.min(removingIdx, Math.max(0, newItems.length - 1));
+            const newItems  = qbs.items.filter((_, i) => i !== targetIdx);
+            const newCursor = Math.min(targetIdx, Math.max(0, newItems.length - 1));
             state.setQueueBrowserState(context, { items: newItems, cursorIndex: newCursor });
             layoutManager.renderStripLayout(context);
 
@@ -4783,10 +4817,10 @@
             // so the playMedia re-sync on the next poll skips straight to C instead of
             // re-anchoring on B (which is now deleted and causes a snap-back to A).
             state.hadRecentKicks = true;
-            state.kickedNextTrackKey = (removingIdx === 0 && newItems.length > 0)
+            state.kickedNextTrackKey = (targetIdx === 0 && newItems.length > 0)
                 ? (newItems[0].key || null)
                 : null;
-            plexConnection.removeFromQueue(removingItem.queueID, removingItem.playQueueItemID)
+            plexConnection.removeFromQueue(targetItem.queueID, targetItem.playQueueItemID)
                 .then(() => loadQueueItems(context, { forceRefresh: true }))
                 .catch(err => {
                     logger.warn(`Queue removal failed: ${err.message}`);

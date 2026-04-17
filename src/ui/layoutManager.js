@@ -66,7 +66,7 @@ export function renderStripLayout(context) {
     if (displayMode === 'playlists') {
         return renderPlaylistCarousel(context, settings, fontSize, totalPanels, position, textColor, accentColor, stripSecondary);
     } else if (displayMode === 'queue') {
-        return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary);
+        return renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary, settings.queuePressAction || 'remove');
     } else if (state.currentTrack) {
         if (displayMode === 'artist') {
             label = 'ARTIST';
@@ -166,7 +166,7 @@ export function renderStripLayout(context) {
  * Render the "Up Next" queue browser: scrollable text list with focused row highlighted.
  * Dial rotation moves the cursor; dial press removes the focused track from the queue.
  */
-function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary) {
+function renderQueueBrowser(context, settings, accentColor, textColor, stripSecondary, pressAction = 'remove') {
     const layoutKey = 'queue-browser';
     if (state.lastLayoutState[context] !== layoutKey) {
         state.lastLayoutState[context] = layoutKey;
@@ -225,7 +225,7 @@ function renderQueueBrowser(context, settings, accentColor, textColor, stripSeco
             if (itemIdx >= total) break;
             const item      = qbs.items[itemIdx];
             const isFocused = (row === focusedRow);
-            const isLocked  = (itemIdx === 0);
+            const isLocked  = (itemIdx === 0) && (pressAction === 'remove');
             const rowY      = HEADER_H + row * ROW_H;
 
             if (isFocused) {
@@ -250,7 +250,7 @@ function renderQueueBrowser(context, settings, accentColor, textColor, stripSeco
             const titleFont = `${isFocused ? 'bold ' : ''}${titleSize}px sans-serif`;
 
             // Draw a padlock icon in the icon column (accent bar 0–3, title at 21)
-            if (itemIdx === 0) {
+            if (isLocked) {
                 // When focused: accent color lock pops against the grey row — clearly locked/special.
                 // When not focused: recede to 50% white so it doesn't compete with title text.
                 const iconColor = isFocused
@@ -294,8 +294,8 @@ function renderQueueBrowser(context, settings, accentColor, textColor, stripSeco
                 ctx.fillRect(cx - 1.5, ky, 3, 3.5); // slot below circle
             }
 
-            const titleX     = itemIdx === 0 ? 21 : 5;
-            const titleWidth = itemIdx === 0 ? 172 : 188;
+            const titleX     = isLocked ? 21 : 5;
+            const titleWidth = isLocked ? 172 : 188;
             const rawTitle   = item.title || 'Unknown';
             const titleText  = truncateText(ctx, rawTitle, titleFont, titleWidth);
             ctx.font      = titleFont;

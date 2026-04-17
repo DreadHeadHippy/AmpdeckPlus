@@ -297,44 +297,60 @@ export function renderRating(context) {
     const textColor = isDimmed ? COLORS.DARK_GRAY : getTextColor();
     const accentColor = isDimmed ? COLORS.DARK_GRAY : getAccentColor();
 
+    const showRatingLabel = settings.showRatingLabel !== false; // default true
+
     if (state.currentTrack) {
         if (ratingMode === 'single') {
-            // Single-star mode: "RATING" label at top, large centered star below
+            // Single-star mode: optional "RATING" label, large centered star below
             // 3 states matching Plexamp: empty ☆ (unrated) → ★ (liked=10) → ★̶ (disliked=2)
             ctx.textAlign = 'center';
-            ctx.font = 'bold 26px sans-serif';
-            ctx.fillStyle = textColor;
-            ctx.fillText('RATING', 72, 32);
+
+            let starCenterY;
+            if (showRatingLabel) {
+                ctx.font = 'bold 26px sans-serif';
+                ctx.fillStyle = textColor;
+                ctx.fillText('RATING', 72, 32);
+                starCenterY = Math.round((40 + CANVAS.BUTTON_SIZE) / 2); // ≈92
+            } else {
+                starCenterY = Math.round(CANVAS.BUTTON_SIZE / 2); // 72 — fully centered
+            }
 
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 90px sans-serif';
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            const scale = fontSize / 90;
 
             if (state.currentRating === RATING.SINGLE_LIKED) {
                 // Liked: full ★ in accent color
                 ctx.fillStyle = accentColor;
-                ctx.fillText('★', 72, 90);
+                ctx.fillText('★', 72, starCenterY);
             } else if (state.currentRating === RATING.SINGLE_DISLIKED) {
                 // Disliked: full ★ with diagonal "/" strikethrough in accent color
                 ctx.fillStyle = accentColor;
-                ctx.fillText('★', 72, 90);
+                ctx.fillText('★', 72, starCenterY);
                 ctx.strokeStyle = accentColor;
-                ctx.lineWidth = 8;
+                ctx.lineWidth = Math.max(2, Math.round(8 * scale));
                 ctx.lineCap = 'round';
                 ctx.beginPath();
-                ctx.moveTo(38, 128);
-                ctx.lineTo(108, 48);
+                ctx.moveTo(72 - Math.round(34 * scale), starCenterY + Math.round(38 * scale));
+                ctx.lineTo(72 + Math.round(36 * scale), starCenterY - Math.round(42 * scale));
                 ctx.stroke();
             } else {
                 // Unrated: empty ☆ in text color
                 ctx.fillStyle = textColor;
-                ctx.fillText('☆', 72, 90);
+                ctx.fillText('☆', 72, starCenterY);
             }
         } else {
-        // Display "RATING" label at top
+        // Conditionally display "RATING" label at top
         ctx.textAlign = "center";
-        ctx.font = "bold 26px sans-serif";
-        ctx.fillStyle = textColor;
-        ctx.fillText("RATING", 72, 32);
+        let contentY;
+        if (showRatingLabel) {
+            ctx.font = "bold 26px sans-serif";
+            ctx.fillStyle = textColor;
+            ctx.fillText("RATING", 72, 32);
+            contentY = 90;
+        } else {
+            contentY = Math.round(CANVAS.BUTTON_SIZE / 2); // 72 — fully centered
+        }
 
         // Display rating based on style preference
         const hasHalfStar = state.currentRating % 2 === 1;
@@ -344,18 +360,19 @@ export function renderRating(context) {
             // Stars only
             const stars = formatRating(state.currentRating, ratingMode);
             ctx.font = "bold " + fontSize + "px sans-serif";
+            ctx.textBaseline = "middle";
             ctx.fillStyle = accentColor;
-            ctx.fillText(stars, 72, 90);
+            ctx.fillText(stars, 72, contentY);
         } else if (displayStyle === "numeric") {
             // Numeric only (e.g., "4.5" or "4")
             ctx.font = "bold " + fontSize + "px sans-serif";
             ctx.textBaseline = "middle";
             ctx.fillStyle = accentColor;
             if (state.currentRating === 0) {
-                ctx.fillText("0", 72, 90);
+                ctx.fillText("0", 72, contentY);
             } else {
                 numericRating = hasHalfStar ? (state.currentRating / 2).toFixed(1) : (state.currentRating / 2).toString();
-                ctx.fillText(numericRating, 72, 90);
+                ctx.fillText(numericRating, 72, contentY);
             }
         } else {
             // Both - numeric with scale (e.g., "4.5/5" or "4/5")
@@ -363,10 +380,10 @@ export function renderRating(context) {
             ctx.textBaseline = "middle";
             ctx.fillStyle = accentColor;
             if (state.currentRating === 0) {
-                ctx.fillText("0/5", 72, 90);
+                ctx.fillText("0/5", 72, contentY);
             } else {
                 numericRating = hasHalfStar ? (state.currentRating / 2).toFixed(1) : (state.currentRating / 2).toString();
-                ctx.fillText(numericRating + "/5", 72, 90);
+                ctx.fillText(numericRating + "/5", 72, contentY);
             }
         }
         } // end non-single block

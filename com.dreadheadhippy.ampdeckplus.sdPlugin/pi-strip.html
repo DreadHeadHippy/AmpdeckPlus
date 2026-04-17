@@ -226,6 +226,15 @@
         <div class="help-text" id="dialPressActionHelp">What happens when the dial is pressed</div>
     </div>
 
+    <div class="sdpi-item" id="queuePressActionContainer" style="display: none;">
+        <label>Queue Press Action</label>
+        <select id="queuePressAction">
+            <option value="remove">Remove from queue</option>
+            <option value="play">Play track (skip forward)</option>
+        </select>
+        <div class="help-text">What the dial press does on a highlighted queue item</div>
+    </div>
+
     <div class="sdpi-heading">Progress Bar</div>
     
     <div class="sdpi-item">
@@ -359,6 +368,7 @@
             document.getElementById('carouselShuffle').checked = settings.carouselShuffle === true;
             document.getElementById('queuePlaylistToggle').checked = settings.queuePlaylistToggle === true;
             document.getElementById('queueRatingMode').value = settings.queueRatingMode || 'half';
+            document.getElementById('queuePressAction').value = settings.queuePressAction || 'remove';
             document.getElementById('showStripLabel').checked = settings.showStripLabel !== false;
             const useLocalInit = settings.useLocalPlayer === true;
             document.getElementById('useLocalPlayer').checked = useLocalInit;
@@ -435,7 +445,10 @@
             document.getElementById('loadPlaylistsContainer').style.display = isPlaylists ? 'block' : 'none';
             document.getElementById('queuePlaylistToggleContainer').style.display = isPlaylists ? 'flex' : 'none';
             document.getElementById('queuePlaylistToggleHelp').style.display = isPlaylists ? 'block' : 'none';
-            document.getElementById('queueRatingModeContainer').style.display = isQueue ? 'block' : 'none';
+            const hasQueueToggle = document.getElementById('queuePlaylistToggle').checked;
+            const showQueueSettings = isQueue || (isPlaylists && hasQueueToggle);
+            document.getElementById('queueRatingModeContainer').style.display = showQueueSettings ? 'block' : 'none';
+            document.getElementById('queuePressActionContainer').style.display = showQueueSettings ? 'block' : 'none';
 
             // Lock dial controls when the mode drives its own rotate/press behaviour
             const dialAction = document.getElementById('dialAction');
@@ -450,8 +463,8 @@
                 document.getElementById('dialActionHelp').textContent = 'Locked \u2014 rotate browses playlists, press plays selection';
                 document.getElementById('dialPressActionHelp').textContent = 'Locked \u2014 press plays the selected playlist';
             } else if (isQueue) {
-                document.getElementById('dialActionHelp').textContent = 'Locked \u2014 rotate scrolls queue, press removes focused track';
-                document.getElementById('dialPressActionHelp').textContent = 'Locked \u2014 press removes the focused track from the queue';
+                document.getElementById('dialActionHelp').textContent = 'Locked \u2014 rotate scrolls queue';
+                document.getElementById('dialPressActionHelp').textContent = 'Locked \u2014 configured by Queue Press Action below';
             } else {
                 document.getElementById('dialActionHelp').textContent = 'What the physical dial does when rotated';
                 document.getElementById('dialPressActionHelp').textContent = 'What happens when the dial is pressed';
@@ -511,6 +524,7 @@
                 carouselShuffle: document.getElementById('carouselShuffle').checked,
                 queuePlaylistToggle: document.getElementById('queuePlaylistToggle').checked,
                 queueRatingMode: document.getElementById('queueRatingMode').value,
+                queuePressAction: document.getElementById('queuePressAction').value,
                 showStripLabel: document.getElementById('showStripLabel').checked,
                 fontSize: document.getElementById('fontSize').value,
                 dialAction: document.getElementById('dialAction').value,
@@ -566,7 +580,10 @@
         });
         document.getElementById('carouselStyle').addEventListener('change', saveSettings);
         document.getElementById('carouselShuffle').addEventListener('change', saveSettings);
-        document.getElementById('queuePlaylistToggle').addEventListener('change', saveSettings);
+        document.getElementById('queuePlaylistToggle').addEventListener('change', function() {
+            updateCarouselStyleVisibility();
+            saveSettings();
+        });
 
         document.getElementById('loadPlaylistsBtn').addEventListener('click', function() {
             const serverUrl = document.getElementById('plexServerUrl').value.trim();
@@ -635,6 +652,7 @@
             }
         }
         document.getElementById('queueRatingMode').addEventListener('change', saveSettings);
+        document.getElementById('queuePressAction').addEventListener('change', saveSettings);
         document.getElementById('showStripLabel').addEventListener('change', saveSettings);
         document.getElementById('fontSize').addEventListener('change', saveSettings);
         document.getElementById('dialAction').addEventListener('change', function() {

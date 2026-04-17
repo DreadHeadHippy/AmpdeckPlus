@@ -598,17 +598,34 @@ function onDialUp(data) {
 
         const qbs = state.getQueueBrowserState(context);
         if (!qbs || qbs.items.length === 0) return;
-        const removingIdx  = qbs.cursorIndex;
-        const removingItem = qbs.items[removingIdx];
-        if (!removingItem) return;
+        const targetIdx  = qbs.cursorIndex;
+        const targetItem = qbs.items[targetIdx];
+        if (!targetItem) return;
 
+        const pressAction = settings.queuePressAction || 'remove';
+
+        if (pressAction === 'play') {
+            // Skip to the highlighted track in the queue
+            plexConnection.playerCommand(
+                '/player/playback/skipTo',
+                { key: targetItem.key, playQueueItemID: targetItem.playQueueItemID }
+            )
+                .then(() => loadQueueItems(context, { forceRefresh: true }))
+                .catch(err => {
+                    logger.warn(`Queue skip failed: ${err.message}`);
+                    loadQueueItems(context, { forceRefresh: true });
+                });
+            return;
+        }
+
+        // Default: remove from queue
         // The very next track (index 0) is pre-buffered by Plexamp and cannot be
         // reliably removed — kicking it causes a snap-back to the current song.
-        if (removingIdx === 0) return;
+        if (targetIdx === 0) return;
 
         // Instant removal from local list
-        const newItems  = qbs.items.filter((_, i) => i !== removingIdx);
-        const newCursor = Math.min(removingIdx, Math.max(0, newItems.length - 1));
+        const newItems  = qbs.items.filter((_, i) => i !== targetIdx);
+        const newCursor = Math.min(targetIdx, Math.max(0, newItems.length - 1));
         state.setQueueBrowserState(context, { items: newItems, cursorIndex: newCursor });
         layoutManager.renderStripLayout(context);
 
@@ -617,10 +634,10 @@ function onDialUp(data) {
         // so the playMedia re-sync on the next poll skips straight to C instead of
         // re-anchoring on B (which is now deleted and causes a snap-back to A).
         state.hadRecentKicks = true;
-        state.kickedNextTrackKey = (removingIdx === 0 && newItems.length > 0)
+        state.kickedNextTrackKey = (targetIdx === 0 && newItems.length > 0)
             ? (newItems[0].key || null)
             : null;
-        plexConnection.removeFromQueue(removingItem.queueID, removingItem.playQueueItemID)
+        plexConnection.removeFromQueue(targetItem.queueID, targetItem.playQueueItemID)
             .then(() => loadQueueItems(context, { forceRefresh: true }))
             .catch(err => {
                 logger.warn(`Queue removal failed: ${err.message}`);

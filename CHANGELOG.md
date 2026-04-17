@@ -4,6 +4,20 @@
 
 ---
 
+## [2.0.18] - 2026-04-17
+
+### ✨ New Features
+- **"RATING" label toggle on Rating button** — A new **"Show 'RATING' Label"** checkbox in the Rating button settings (default on). When unchecked, the label is hidden and the star/numeric rating is vertically centered in the full button space for a cleaner look.
+- **Font size now affects single-star mode** — The Single Star rating mode (`★` / `☆`) now respects the **Font Size** setting like all other rating modes, instead of being fixed at 90px. The strikethrough line on the disliked state scales proportionally with the font size.
+- **Play highlighted track in Queue browser** — A new **"Queue Press Action"** dropdown appears in the Dial Controls section when the display mode is Queue (or Playlists with the queue toggle enabled). Choose between:
+  - **Remove from queue** — existing behaviour, removes the focused track
+  - **Play track (skip forward)** — issues a `skipTo` command so Plexamp jumps immediately to the highlighted track. The pre-buffered next-track lock is lifted in this mode, as skipping to it is safe.
+
+### 🎨 Visual Polish
+- **Queue browser lock icon hidden in Play mode** — When "Queue Press Action" is set to "Play track", the padlock icon and greyed-out styling on the first queue item (pre-buffered track) are no longer shown — all rows render with equal interactive styling.
+
+---
+
 ## [2.0.17] - 2026-04-11
 
 ### ✨ New Features

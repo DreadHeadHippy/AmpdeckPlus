@@ -326,6 +326,12 @@
             </select>
             <div class="help-text">Tap to cycle by half/full stars, or one press to set/clear a single star</div>
         </div>
+
+        <div class="sdpi-item-checkbox">
+            <input type="checkbox" id="showRatingLabel" checked>
+            <label for="showRatingLabel">Show "RATING" Label</label>
+        </div>
+        <div class="help-text" style="margin-top: -6px; margin-bottom: 10px;">When unchecked, the label is hidden and the rating uses the full button space</div>
     </div>
 
     <div id="volumeDownSettings" style="display: none;">
@@ -1098,6 +1104,7 @@
                 document.getElementById('ratingDisplay').value = settings.ratingDisplay || 'stars';
                 document.getElementById('ratingFontSize').value = settings.ratingFontSize || '48';
                 document.getElementById('ratingMode').value = settings.ratingMode || 'half';
+                document.getElementById('showRatingLabel').checked = settings.showRatingLabel !== false;
             }
 
             // Show volume down settings
@@ -1320,6 +1327,7 @@
                 settings.ratingDisplay = document.getElementById('ratingDisplay').value;
                 settings.ratingFontSize = document.getElementById('ratingFontSize').value;
                 settings.ratingMode = document.getElementById('ratingMode').value;
+                settings.showRatingLabel = document.getElementById('showRatingLabel').checked;
             }
 
             if (actionInfo && actionInfo.action === 'com.dreadheadhippy.ampdeckplus.playlist') {
@@ -1389,6 +1397,7 @@
         });
         document.getElementById('fadeDuration').addEventListener('change', saveSettings);
         document.getElementById('showTitleLabel').addEventListener('change', saveSettings);
+        document.getElementById('showRatingLabel').addEventListener('change', saveSettings);
 
         // Load Playlists from Plex server
         async function loadPlaylists(serverUrl, token, silent) {
