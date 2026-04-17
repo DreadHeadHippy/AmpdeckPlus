@@ -2110,13 +2110,13 @@
         ctx.fillStyle = COLORS.BLACK;
         ctx.fillRect(0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
 
-        const isDimmed = state.playbackState === 'stopped';
+        const isDimmed = state.playbackState !== 'playing';
 
         if (state.currentAlbumArt) {
             const img = new Image();
             img.onload = () => {
                 ctx.drawImage(img, 0, 0, CANVAS.BUTTON_SIZE, CANVAS.BUTTON_SIZE);
-                
+
                 // Apply gray overlay when paused or stopped
                 if (isDimmed) {
                     ctx.fillStyle = 'rgba(128, 128, 128, 0.6)';
