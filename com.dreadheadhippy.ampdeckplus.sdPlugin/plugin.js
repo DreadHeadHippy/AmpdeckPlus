@@ -4793,11 +4793,8 @@
                     '/player/playback/skipTo',
                     { key: targetItem.key, playQueueItemID: targetItem.playQueueItemID }
                 )
-                    .then(() => loadQueueItems(context, { forceRefresh: true }))
-                    .catch(err => {
-                        logger.warn(`Queue skip failed: ${err.message}`);
-                        loadQueueItems(context, { forceRefresh: true });
-                    });
+                    .catch(err => logger.warn(`Queue skip failed: ${err.message}`))
+                    .finally(() => loadQueueItems(context, { forceRefresh: true, resetCursor: true }));
                 return;
             }
 
@@ -4821,11 +4818,8 @@
                 ? (newItems[0].key || null)
                 : null;
             plexConnection.removeFromQueue(targetItem.queueID, targetItem.playQueueItemID)
-                .then(() => loadQueueItems(context, { forceRefresh: true }))
-                .catch(err => {
-                    logger.warn(`Queue removal failed: ${err.message}`);
-                    loadQueueItems(context, { forceRefresh: true });
-                });
+                .catch(err => logger.warn(`Queue removal failed: ${err.message}`))
+                .finally(() => loadQueueItems(context, { forceRefresh: true }));
         }
     }
 
@@ -4992,7 +4986,7 @@
     // SETTINGS MANAGEMENT
     // ============================================
 
-    async function loadQueueItems(context, { forceRefresh = false, currentRatingKey = null } = {}) {
+    async function loadQueueItems(context, { forceRefresh = false, currentRatingKey = null, resetCursor = false } = {}) {
         const containerKey = state.currentContainerKey;
         if (!containerKey || !containerKey.startsWith('/playQueues/')) {
             delete queueItemsCache[context];
@@ -5038,7 +5032,9 @@
             const upNextWithQueueID = upNext.map(i => ({ ...i, queueID }));
 
             const fresh     = state.getQueueBrowserState(context);
-            const newCursor = Math.min(fresh?.cursorIndex || 0, Math.max(0, upNextWithQueueID.length - 1));
+            const newCursor = resetCursor
+                ? 0
+                : Math.min(fresh?.cursorIndex || 0, Math.max(0, upNextWithQueueID.length - 1));
             state.setQueueBrowserState(context, { items: upNextWithQueueID, cursorIndex: newCursor });
             queueItemsCache[context] = containerKey; // mark as loaded
             logger.info(`Queue browser: loaded ${upNextWithQueueID.length} up-next items`);
