@@ -3329,7 +3329,7 @@
         const displayMode = state.getActiveDisplayMode(context) || settings.displayMode || 'artist';
         const fontSize = parseInt(settings.fontSize) || 16;
         const totalPanels = parseInt(settings.progressTotalPanels) || 3;
-        const position = parseInt(settings.progressPosition) || 1;
+        const position = parseInt(settings.progressPosition ?? 1);
 
         const textColor = getTextColor();
         const accentColor = getAccentColor();
@@ -3610,12 +3610,12 @@
 
         // Progress bar
         const totalPanels = parseInt(settings.progressTotalPanels) || 3;
-        const position    = parseInt(settings.progressPosition)    || 1;
+        const position    = parseInt(settings.progressPosition ?? 1);
         const progress    = state.displayProgress;
         const barY        = 90; // match other strip modes
-        ctx.fillStyle = COLORS.DARK_GRAY;
-        ctx.fillRect(0, barY, 200, BAR_H);
         if (position > 0 && position <= totalPanels) {
+            ctx.fillStyle = COLORS.DARK_GRAY;
+            ctx.fillRect(0, barY, 200, BAR_H);
             const segSize  = 100 / totalPanels;
             const segStart = (position - 1) * segSize;
             const segEnd   = position * segSize;
@@ -3817,12 +3817,12 @@
 
             // Progress bar at bottom
             const pgSettings = state.getActionSettings(context);
-            const totalPanels = parseInt(pgSettings.progressTotalPanels) || 1;
-            const position = parseInt(pgSettings.progressPosition) || 0;
+            const totalPanels = parseInt(pgSettings.progressTotalPanels) || 3;
+            const position = parseInt(pgSettings.progressPosition ?? 1);
             const progress = state.displayProgress;
-            ctx.fillStyle = COLORS.DARK_GRAY;
-            ctx.fillRect(0, PROG_Y, 200, PROG_H);
             if (position > 0 && position <= totalPanels) {
+                ctx.fillStyle = COLORS.DARK_GRAY;
+                ctx.fillRect(0, PROG_Y, 200, PROG_H);
                 const segSize = 100 / totalPanels;
                 const segStart = (position - 1) * segSize;
                 const segEnd = position * segSize;
@@ -4039,15 +4039,15 @@
         canvas.width = 200;
         canvas.height = 10;
         const ctx = canvas.getContext('2d');
-        
-        ctx.fillStyle = COLORS.DARK_GRAY;
-        ctx.fillRect(0, 0, 200, 10);
 
         if (position > 0 && position <= totalPanels) {
+            ctx.fillStyle = COLORS.DARK_GRAY;
+            ctx.fillRect(0, 0, 200, 10);
+
             const segSize = 100 / totalPanels;
             const segStart = (position - 1) * segSize;
             const segEnd = position * segSize;
-            
+
             if (progress > segStart) {
                 const progressInSeg = Math.min(progress, segEnd) - segStart;
                 const fillWidth = Math.round((progressInSeg / segSize) * 200);
@@ -4057,7 +4057,7 @@
                 }
             }
         }
-        
+
         return canvas.toDataURL('image/png');
     }
 
