@@ -4,6 +4,14 @@
 
 ---
 
+## [2.0.19] - 2026-04-17
+
+### 🐛 Bug Fixes
+- **Queue position resets after playing a track** — When using "Play track" in the Queue browser, the queue list now scrolls back to the top after the item plays instead of staying at the previously focused position. (Fixes #13, thanks [@BuddyLReno](https://github.com/BuddyLReno))
+- **Now Playing Strip progress bars respect "None" position** — Setting a progress bar slot to None now correctly removes it from rendering. Also fixes a desync where the 4th dial slot could incorrectly default to position 1, causing its progress bar to render in the wrong place. (Fixes #15, thanks [@BuddyLReno](https://github.com/BuddyLReno))
+
+---
+
 ## [2.0.18] - 2026-04-17
 
 ### ✨ New Features
