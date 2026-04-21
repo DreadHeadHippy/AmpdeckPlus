@@ -110,7 +110,7 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 - [Plexamp](https://www.plex.tv/plexamp/) running on the same network or remotely
 - Access to a [Plex Media Server](https://www.plex.tv/media-server-downloads/) with a music library (you don't need to own the server)
 
-## Installation
+## Installation & Updating
 
 > **⚠️ Important:** If you have **Ampdeck** installed, please **uninstall it first** before installing **Ampdeck+**.
 
@@ -119,22 +119,6 @@ Ampdeck+ works on **any Stream Deck model** — the button actions (Album Art, P
 3. Double-click the file to install
 
 That's it. Stream Deck handles the rest.
-
-## Updating
-
-**Windows:**
-
-1. Close Stream Deck completely (right-click system tray icon → Quit)
-2. Download `install.bat` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
-3. Double-click `install.bat`
-
-**macOS:**
-
-1. Close Stream Deck completely (menu bar icon → Quit)
-2. Download `install.sh` from the latest [Releases](https://github.com/DreadHeadHippy/AmpdeckPlus/releases)
-3. Run `chmod +x install.sh && ./install.sh`
-
-The install scripts will update the plugin while preserving your settings.
 
 ## Setup
 
