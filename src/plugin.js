@@ -673,11 +673,16 @@ function onTouchTap(data) {
 
 async function handleButtonAction(action, context) {
     // PLAYLIST is allowed when stopped or idle — it launches Plexamp and starts playback.
-    if ((state.playbackState === 'stopped' || state.playbackState === 'idle') && action !== ACTIONS.PLAYLIST) return;
+    // ALBUM_ART when stopped focuses the Plexamp app instead of toggling playback.
+    if ((state.playbackState === 'stopped' || state.playbackState === 'idle') && action !== ACTIONS.PLAYLIST && action !== ACTIONS.ALBUM_ART) return;
 
     switch (action) {
         case ACTIONS.ALBUM_ART:
-            await playbackController.togglePlayPause();
+            if (state.playbackState === 'stopped' || state.playbackState === 'idle') {
+                focusPlexampApp();
+            } else {
+                await playbackController.togglePlayPause();
+            }
             break;
         case ACTIONS.PLAY_PAUSE:
             await playbackController.togglePlayPause();
@@ -797,6 +802,29 @@ async function handleButtonAction(action, context) {
     
     // Update displays after action
     setTimeout(() => updateAllDisplays(), 100);
+}
+
+// ============================================
+// PLEXAMP APP FOCUS
+// ============================================
+
+/**
+ * Focus the Plexamp application by opening its URL scheme via Stream Deck.
+ */
+function focusPlexampApp() {
+    if (!state.connection) {
+        logger.warn('Cannot focus Plexamp: no Stream Deck connection');
+        return;
+    }
+    const sent = state.connection.send({
+        event: 'openUrl',
+        payload: { url: 'plexamp://' }
+    });
+    if (sent) {
+        logger.info('Focusing Plexamp app');
+    } else {
+        logger.warn('Failed to send focus command to Stream Deck');
+    }
 }
 
 // ============================================
