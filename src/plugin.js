@@ -8,7 +8,7 @@ import { VERSION, ACTIONS, TIMING, LOG_LEVELS, RATING, VOLUME, PLEX } from './co
 import ConnectionManager from './core/connectionManager.js';
 import state from './core/stateManager.js';
 import logger from './utils/logger.js';
-import { createWorker, terminateWorker, formatRating } from './utils/helpers.js';
+import { createWorker, terminateWorker, formatRating, formatTime } from './utils/helpers.js';
 import plexConnection from './plex/plexConnection.js';
 import playbackController from './plex/playbackController.js';
 import metadataCache from './plex/metadataCache.js';
@@ -482,6 +482,25 @@ function onDialRotate(data) {
         // Copy state, clear any in-progress removal animation
         state.setQueueBrowserState(context, { items: qbs.items, cursorIndex: newCursor, removalOffset: 0 });
         layoutManager.renderStripLayout(context);
+        return;
+    }
+
+    if (dialAction === 'scrub') {
+        if (state.playbackState === 'stopped' || state.playbackState === 'idle') {
+            layoutManager.showStripOverlay(context, 'NOT PLAYING');
+            return;
+        }
+
+        if (ticks === 0) return;
+
+        const deltaMs = ticks * TIMING.SEEK_AMOUNT;
+        const currentPos = state.currentPosition || 0;
+        const maxPos = state.trackDuration > 0 ? state.trackDuration : Number.MAX_SAFE_INTEGER;
+        const targetPos = Math.max(0, Math.min(currentPos + deltaMs, maxPos));
+        const deltaText = `${deltaMs >= 0 ? '+' : '-'}${formatTime(Math.abs(deltaMs))}`;
+
+        playbackController.seek(deltaMs);
+        layoutManager.showStripOverlay(context, deltaText, formatTime(targetPos));
         return;
     }
 

@@ -29,10 +29,10 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ✨ What's New in v2.0.19
+## ✨ What's New in v2.0.20
 
-- **Queue position resets after playing a track** — When using "Play track" in the Queue browser, the list now scrolls back to the top after the item plays instead of staying at the previously focused position.
-- **Now Playing Strip progress bars respect "None"** — Setting a progress bar slot to None now correctly removes it from rendering. Also fixes a desync where the 4th dial slot could incorrectly default to position 1, causing its bar to render in the wrong place.
+- **Strip dial scrub action** — Added a new Dial Action option: **Rotate: Scrub Track, Press: Play/Pause**. Rotate seeks through the current track in 10-second steps with on-strip feedback.
+- **Scrub overlays and availability feedback** — Scrubbing now shows signed seek delta + target timestamp overlays, and shows **NOT PLAYING** when scrub is used while playback is unavailable.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 
@@ -45,7 +45,7 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 - **Playlist Carousel** — Touch strip action that displays your Plex playlists in a scrollable view. Choose between poster art mode (3-up artwork browser) or text mode. Rotate the dial to browse, press to queue and play the selected playlist. Enable **Start playlist shuffled** to shuffle on play. Click **Load Playlists** in the tile settings to refresh the carousel with any new playlists you've added in Plexamp.
 - **Queue (Up Next) browser** — Touch strip mode that shows the next 3 upcoming tracks as a live scrollable list with title, artist, and star rating. Rotate the dial to move the cursor, press to act on the focused track. Set **Queue Press Action** to **Remove from queue** (removes the track) or **Play track** (skips Plexamp directly to that track). In "Remove" mode the first item (pre-buffered by Plexamp) is shown with a lock icon and cannot be removed. Enable **Toggle Queue / Playlist with touch** in the Playlist Carousel settings to tap between the carousel and queue views without leaving the strip.
 - **Now Playing Strip** — Artist, album, track, or elapsed time on each touch strip panel with auto-scrolling for long text. Clean symmetrical spacing and enlarged text for better readability. Toggle the **"Show mode label"** checkbox in the tile settings to hide the ARTIST / ALBUM / TRACK label row and expand the text into the full available space.
-- **Dial Controls** — Configurable dial actions: rotate to skip tracks, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
+- **Dial Controls** — Configurable dial actions: rotate to skip tracks, scrub through the current track, adjust volume, or rate tracks. Press to play/pause, toggle shuffle, or cycle repeat.
 - **Star Ratings** — Rate your tracks with half-star or full-star increments using the dial or dedicated rating button. Visual feedback shows the rating with stars. Ratings intelligently debounced for smooth server communication.
 - **Rating Button** — Dedicated button showing the current track's star rating. Tap to cycle through ratings with configurable font size and increment mode (full star, half star, or single-star). In **single-star mode**, tapping cycles through all three Plexamp states: unrated (☆) → liked (★) → disliked (★ with diagonal strikethrough) → unrated. Wraps from 5 stars back to 0 for quick clearing in multi-star modes. Toggle **"Show 'RATING' Label"** in the button settings to hide the label for a cleaner, full-button display.
 - **Touch Strip Controls** — Tap anywhere on the strip to play/pause with visual feedback overlays showing the action taken. Symmetrical spacing throughout.
@@ -174,7 +174,7 @@ Each dial panel can be configured independently:
 |---------|---------|
 | **Display Mode** | Artist, Album, Track Title, Time, or Playlists |
 | **Font Size** | Small (12) through XX-Large (28) |
-| **Dial Action** | None, Next/Previous (rotate), Volume (rotate), or Star Rating (rotate) |
+| **Dial Action** | None, Next/Previous (rotate), Scrub Track (rotate), Volume (rotate), or Star Rating (rotate) |
 | **Rating Mode** | Half Star (0.5 increment) or Full Star (1.0 increment) — only appears when Dial Action is set to Star Rating |
 | **Dial Press** | Play/Pause, Toggle Shuffle, or Cycle Repeat |
 | **Total Panels** | How many panels share the progress bar (1–4) |

@@ -4,6 +4,16 @@
 
 ---
 
+## [2.0.20] - 2026-07-14
+
+### ✨ New Features
+- **Strip dial scrub action** — Added a new **Dial Action** option on the Now Playing Strip: **Rotate: Scrub Track, Press: Play/Pause**. Rotating seeks through the current track in 10-second steps per tick with on-strip seek feedback.
+
+### 🎨 Visual Polish
+- **Scrub seek overlays** — While scrubbing, the strip overlay now shows a signed seek delta and target timestamp. If playback is unavailable, the strip shows **NOT PLAYING** when scrub is used.
+
+---
+
 ## [2.0.19] - 2026-04-17
 
 ### 🐛 Bug Fixes

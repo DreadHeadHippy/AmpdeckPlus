@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.19';
+    const VERSION = '2.0.20';
 
     // Action identifiers
     const ACTIONS = {
@@ -4665,6 +4665,25 @@
             // Copy state, clear any in-progress removal animation
             state.setQueueBrowserState(context, { items: qbs.items, cursorIndex: newCursor, removalOffset: 0 });
             layoutManager.renderStripLayout(context);
+            return;
+        }
+
+        if (dialAction === 'scrub') {
+            if (state.playbackState === 'stopped' || state.playbackState === 'idle') {
+                layoutManager.showStripOverlay(context, 'NOT PLAYING');
+                return;
+            }
+
+            if (ticks === 0) return;
+
+            const deltaMs = ticks * TIMING.SEEK_AMOUNT;
+            const currentPos = state.currentPosition || 0;
+            const maxPos = state.trackDuration > 0 ? state.trackDuration : Number.MAX_SAFE_INTEGER;
+            const targetPos = Math.max(0, Math.min(currentPos + deltaMs, maxPos));
+            const deltaText = `${deltaMs >= 0 ? '+' : '-'}${formatTime(Math.abs(deltaMs))}`;
+
+            playbackController.seek(deltaMs);
+            layoutManager.showStripOverlay(context, deltaText, formatTime(targetPos));
             return;
         }
 
