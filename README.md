@@ -29,10 +29,10 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ✨ What's New in v2.0.20
+## ✨ What's New in v2.0.21
 
-- **Strip dial scrub action** — Added a new Dial Action option: **Rotate: Scrub Track, Press: Play/Pause**. Rotate seeks through the current track in 10-second steps with on-strip feedback.
-- **Scrub overlays and availability feedback** — Scrubbing now shows signed seek delta + target timestamp overlays, and shows **NOT PLAYING** when scrub is used while playback is unavailable.
+- **Security patch for `brace-expansion`** — Enforced transitive resolution to `brace-expansion` `5.0.7` (or newer) to remediate the reported DoS advisory.
+- **Deterministic dependency state** — Synced package metadata and lockfile versioning to keep installs reproducible and ensure Dependabot remediation is reflected consistently.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 

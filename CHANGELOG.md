@@ -4,6 +4,14 @@
 
 ---
 
+## [2.0.21] - 2026-07-23
+
+### 🔒 Security
+- **Patched transitive `brace-expansion` dependency** — Added an npm override to enforce `brace-expansion` `5.0.7` or newer to remediate the DoS advisory affecting consecutive non-expanding `{}` groups.
+- **Lockfile/version sync** — Updated package metadata and lockfile to keep release/version state aligned for deterministic installs and Dependabot closure.
+
+---
+
 ## [2.0.20] - 2026-07-14
 
 ### ✨ New Features
