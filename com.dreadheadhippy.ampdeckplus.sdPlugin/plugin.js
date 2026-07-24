@@ -7,7 +7,7 @@
      */
 
     // Version
-    const VERSION = '2.0.20';
+    const VERSION = '2.0.21';
 
     // Action identifiers
     const ACTIONS = {
