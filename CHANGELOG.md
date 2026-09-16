@@ -4,6 +4,13 @@
 
 ---
 
+## [2.0.23] - 2026-09-16
+
+### 🐛 Bug Fixes
+- **Local Plex server incorrectly labeled "via relay"** — The Property Inspector determined relay status by checking whether the server URL contained `.plex.direct`, but local direct connections use that same domain. Relay status is now recorded explicitly at connection-selection time and persisted, so genuinely local connections no longer show the relay warning.
+
+---
+
 ## [2.0.22] - 2026-09-16
 
 ### 🐛 Bug Fixes

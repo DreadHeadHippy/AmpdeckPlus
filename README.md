@@ -29,9 +29,9 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ✨ What's New in v2.0.22
+## ✨ What's New in v2.0.23
 
-- **Fixed local server discovery when Plex requires secure connections** — Setup no longer forces local Plex server connections over plain HTTP. It now verifies each candidate connection with a live test, preferring HTTPS on the original hostname and only falling back to HTTP if that fails.
+- **Fixed incorrect "via relay" label on local connections** — The setup UI now tracks whether a connection is local or relay explicitly instead of guessing from the URL, so genuinely local Plex servers (including those requiring secure connections) no longer show a false relay warning.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 

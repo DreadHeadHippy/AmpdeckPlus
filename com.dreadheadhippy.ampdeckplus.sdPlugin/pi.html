@@ -392,6 +392,7 @@
             <div class="help-text">Your PC name as shown in Plex dashboard (used for server fallback)</div>
         </div>
         <input type="hidden" id="plexServerName">
+        <input type="hidden" id="plexServerIsRelay">
 
     </div>
 
@@ -627,7 +628,8 @@
                     throw new Error('Could not connect to server: ' + server.name);
                 }
                 
-                const serverUrl = bestConn;
+                const serverUrl = bestConn.uri;
+                const isRelay = bestConn.isRelay;
 
                 authStatusEl.innerHTML = '✓ Server found! Discovering Plexamp player...';
 
@@ -707,6 +709,7 @@
                 document.getElementById('playerUrl').value = playerUrl || '';
                 document.getElementById('clientName').value = playerName || '';
                 document.getElementById('plexServerName').value = server.name || '';
+                document.getElementById('plexServerIsRelay').value = String(isRelay);
 
                 saveSettings();
 
@@ -721,7 +724,8 @@
                     plexToken: authToken,
                     plexServerUrl: serverUrl,
                     playerUrl: playerUrl || '',
-                    plexServerName: server.name || ''
+                    plexServerName: server.name || '',
+                    plexServerIsRelay: isRelay
                 });
 
                 // Clean up
@@ -878,7 +882,7 @@
                 if (await testServerConnection(uri, authToken)) {
                     const shortUri = uri.replace(/^https?:\/\//, '');
                     authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${escapeHtml(shortUri)}</small>`;
-                    return uri;
+                    return { uri, isRelay: false };
                 }
             }
 
@@ -889,7 +893,7 @@
             if (relayConn && await testServerConnection(relayConn.uri, authToken)) {
                 const shortUri = relayConn.uri.replace(/^https?:\/\//, '').substring(0, 40) + '...';
                 authStatusEl.innerHTML = `⚠ Using relay connection<br><small style="color: #ff9800;">${escapeHtml(shortUri)}<br>Local network connection not available</small>`;
-                return relayConn.uri;
+                return { uri: relayConn.uri, isRelay: true };
             }
 
             authStatusEl.innerHTML = '✗ No working connections found';
@@ -975,6 +979,7 @@
             document.getElementById('playerUrl').value = '';
             document.getElementById('clientName').value = '';
             document.getElementById('plexServerName').value = '';
+            document.getElementById('plexServerIsRelay').value = '';
             
             // Build completely empty credentials (keep other settings)
             const clearedSettings = {
@@ -989,7 +994,8 @@
                 plexServerUrl: '',
                 plexToken: '',
                 clientName: '',
-                plexServerName: ''
+                plexServerName: '',
+                plexServerIsRelay: false
             };
             
             console.log('[Ampdeck+ Setup] Sending cleared global settings');
@@ -1186,6 +1192,7 @@
                     document.getElementById('plexToken').value = s.plexToken || '';
                     document.getElementById('clientName').value = s.clientName || '';
                     document.getElementById('plexServerName').value = s.plexServerName || '';
+                    document.getElementById('plexServerIsRelay').value = String(s.plexServerIsRelay === true);
                     document.getElementById('syncOffset').value = s.syncOffset !== undefined ? s.syncOffset : 0;
                     document.getElementById('textColor').value = s.textColor || '#FFFFFF';
                     if (s.dynamicColors !== undefined) document.getElementById('dynamicColors').checked = s.dynamicColors;
@@ -1216,8 +1223,9 @@
             const savedServerName = (settings.plexServerName || '').trim();
 
             if (token && serverUrl) {
-                // Prefer the saved Plex server name; fall back to hostname from URL
-                const isRelay = serverUrl.includes('.plex.direct');
+                // Relay status is recorded explicitly at connection time — plex.direct hostnames
+                // are used for local connections too, so they can't be used to detect relay.
+                const isRelay = settings.plexServerIsRelay === true || settings.plexServerIsRelay === 'true';
                 let serverName = savedServerName;
                 if (!serverName) {
                     try { serverName = new URL(serverUrl).hostname; } catch { serverName = serverUrl; }
@@ -1321,6 +1329,7 @@
                 plexToken: document.getElementById('plexToken').value.trim(),
                 clientName: document.getElementById('clientName').value.trim(),
                 plexServerName: document.getElementById('plexServerName').value.trim(),
+                plexServerIsRelay: document.getElementById('plexServerIsRelay').value === 'true',
                 syncOffset: parseInt(document.getElementById('syncOffset').value) || 0,
                 debugMode: document.getElementById('debugMode').checked
             };
