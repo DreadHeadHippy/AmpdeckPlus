@@ -4,6 +4,13 @@
 
 ---
 
+## [2.0.22] - 2026-09-16
+
+### 🐛 Bug Fixes
+- **Server connection forced to HTTP even when Plex required secure connections** — Local Plex server connections are now verified with a live test before being selected, trying the original HTTPS hostname (valid certificate) first and only falling back to the bare-IP HTTP form if that fails. Fixes server discovery for users with "Secure connections: Required" enabled in Plex. (Reported via GitHub issue)
+
+---
+
 ## [2.0.21] - 2026-07-23
 
 ### 🔒 Security

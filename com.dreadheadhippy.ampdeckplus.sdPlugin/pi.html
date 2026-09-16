@@ -637,9 +637,18 @@
                 const knownPlayers = window._plexAuthData?.players || [];
 
                 if (knownPlayers.length > 0) {
-                    // Extract the server's local IP from the decoded serverUrl (e.g. http://10.0.0.10:32400)
+                    // Extract the server's local IP for player matching — decode plex.direct
+                    // hostnames since serverUrl may have kept the original HTTPS hostname
                     let serverIp = null;
-                    try { serverIp = new URL(serverUrl).hostname; } catch {}
+                    try {
+                        const su = new URL(serverUrl);
+                        if (su.hostname.includes('.plex.direct')) {
+                            const decoded = decodePlexDirectToLocal(serverUrl);
+                            serverIp = decoded ? new URL(decoded).hostname : su.hostname;
+                        } else {
+                            serverIp = su.hostname;
+                        }
+                    } catch {}
 
                     const PLEXAMP_PORTS = [32500, 32433];
 
@@ -850,30 +859,40 @@
                     return 0;
                 });
 
-            if (nonRelayConnections.length > 0) {
-                const best = nonRelayConnections[0];
-                let finalUri = best.uri;
-                if (best.local && best.uri.includes('.plex.direct')) {
-                    const decoded = decodePlexDirectToLocal(best.uri);
-                    if (decoded) finalUri = decoded;
+            // Build ordered candidates: try the original HTTPS hostname first (valid cert,
+            // works even when the server requires secure connections), and only fall back to
+            // the bare-IP HTTP form if that fails (e.g. DNS can't resolve plex.direct locally).
+            const candidates = [];
+            for (const conn of nonRelayConnections) {
+                candidates.push(conn.uri);
+                if (conn.local && conn.uri.includes('.plex.direct')) {
+                    const decoded = decodePlexDirectToLocal(conn.uri);
+                    if (decoded && decoded !== conn.uri) {
+                        candidates.push(decoded);
+                    }
                 }
-
-                const shortUri = finalUri.replace(/^https?:\/\//, '');
-                authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${escapeHtml(shortUri)}</small>`;
-                return finalUri;
             }
-            
-            // Fall back to relay
-            authStatusEl.innerHTML = '<span style="color: #ff9800;">⚠ No local connections available, using relay...</span>';
-            
+
+            for (const uri of candidates) {
+                authStatusEl.innerHTML = `Testing ${escapeHtml(uri.replace(/^https?:\/\//, ''))}...`;
+                if (await testServerConnection(uri, authToken)) {
+                    const shortUri = uri.replace(/^https?:\/\//, '');
+                    authStatusEl.innerHTML = `✓ Connected locally<br><small style="color: #4CAF50;">${escapeHtml(shortUri)}</small>`;
+                    return uri;
+                }
+            }
+
+            // Fall back to relay as a last resort
+            authStatusEl.innerHTML = '<span style="color: #ff9800;">⚠ No local connections available, trying relay...</span>';
+
             const relayConn = server.connections.find(conn => conn.relay === true);
-            if (relayConn) {
+            if (relayConn && await testServerConnection(relayConn.uri, authToken)) {
                 const shortUri = relayConn.uri.replace(/^https?:\/\//, '').substring(0, 40) + '...';
                 authStatusEl.innerHTML = `⚠ Using relay connection<br><small style="color: #ff9800;">${escapeHtml(shortUri)}<br>Local network connection not available</small>`;
                 return relayConn.uri;
             }
-            
-            authStatusEl.innerHTML = '✗ No connections available';
+
+            authStatusEl.innerHTML = '✗ No working connections found';
             return null;
         }
 

@@ -29,10 +29,9 @@ Ampdeck+ brings Plexamp to your Stream Deck. See your album art, track info, pla
 
 ---
 
-## ✨ What's New in v2.0.21
+## ✨ What's New in v2.0.22
 
-- **Security patch for `brace-expansion`** — Enforced transitive resolution to `brace-expansion` `5.0.7` (or newer) to remediate the reported DoS advisory.
-- **Deterministic dependency state** — Synced package metadata and lockfile versioning to keep installs reproducible and ensure Dependabot remediation is reflected consistently.
+- **Fixed local server discovery when Plex requires secure connections** — Setup no longer forces local Plex server connections over plain HTTP. It now verifies each candidate connection with a live test, preferring HTTPS on the original hostname and only falling back to HTTP if that fails.
 
 📋 **[View Full Changelog](CHANGELOG.md)**
 

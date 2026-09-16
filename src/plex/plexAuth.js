@@ -195,6 +195,49 @@ export async function discoverServers(authToken) {
 }
 
 /**
+ * Decode a local plex.direct hostname to a direct http://IP:PORT URL
+ * @param {string} uri
+ * @returns {string|null}
+ */
+function decodePlexDirectToLocal(uri) {
+    try {
+        const url = new URL(uri);
+        const firstSegment = url.hostname.split('.')[0];
+        if (/^\d+-\d+-\d+-\d+$/.test(firstSegment)) {
+            const ip = firstSegment.replace(/-/g, '.');
+            const port = url.port || '32400';
+            return `http://${ip}:${port}`;
+        }
+    } catch {}
+    return null;
+}
+
+/**
+ * Check whether a Plex server connection actually responds
+ * @param {string} uri
+ * @param {string} authToken
+ * @returns {Promise<boolean>}
+ */
+async function testServerConnection(uri, authToken) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    try {
+        const response = await fetch(`${uri}/`, {
+            headers: {
+                'X-Plex-Token': authToken,
+                'X-Plex-Client-Identifier': PLEX.CLIENT_IDENTIFIER
+            },
+            signal: controller.signal
+        });
+        return response.ok;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+/**
  * Find the best (fastest, most local) server connection
  * @param {Object} server - Server object from discoverServers
  * @param {string} authToken - Auth token
@@ -206,7 +249,6 @@ export async function findBestServerConnection(server, authToken) {
 
     // Plex uses plex.direct DNS for ALL connections (including local ones), so
     // filter on the relay property, not the URL pattern.
-    // For local plex.direct connections, decode the embedded IP to get http://IP:PORT.
     const nonRelayConnections = [...server.connections]
         .filter(conn => {
             if (conn.relay === true) {
@@ -222,33 +264,32 @@ export async function findBestServerConnection(server, authToken) {
             return 0;
         });
 
-    if (nonRelayConnections.length > 0) {
-        const best = nonRelayConnections[0];
-        let finalUri = best.uri;
-
-        // Decode local plex.direct hostnames to a direct http://IP:PORT URL
-        if (best.local && best.uri.includes('.plex.direct')) {
-            try {
-                const url = new URL(best.uri);
-                const firstSegment = url.hostname.split('.')[0];
-                if (/^\d+-\d+-\d+-\d+$/.test(firstSegment)) {
-                    const ip = firstSegment.replace(/-/g, '.');
-                    const port = url.port || '32400';
-                    // Always use http:// for raw IP — preserving https: would cause TLS cert
-                    // mismatch because the cert is for *.plex.direct, not the bare IP.
-                    finalUri = `http://${ip}:${port}`;
-                    logger.info(`Decoded local plex.direct to direct IP: ${best.uri} => ${finalUri}`);
-                }
-            } catch {}
+    // Build ordered candidates: try each connection's original hostname over HTTPS first
+    // (valid cert, required when the server enforces secure connections), and only fall
+    // back to the bare-IP HTTP form for local connections if that fails (e.g. plex.direct
+    // can't be resolved on this network).
+    const candidates = [];
+    for (const conn of nonRelayConnections) {
+        candidates.push(conn.uri);
+        if (conn.local && conn.uri.includes('.plex.direct')) {
+            const decoded = decodePlexDirectToLocal(conn.uri);
+            if (decoded && decoded !== conn.uri) {
+                candidates.push(decoded);
+            }
         }
+    }
 
-        logger.info(`Selected connection: ${finalUri} (local: ${best.local})`);
-        return finalUri;
+    for (const uri of candidates) {
+        if (await testServerConnection(uri, authToken)) {
+            logger.info(`Selected connection: ${uri}`);
+            return uri;
+        }
+        logger.debug(`Connection candidate failed: ${uri}`);
     }
 
     // Fall back to relay as last resort
     const relayConn = server.connections.find(conn => conn.relay === true);
-    if (relayConn) {
+    if (relayConn && await testServerConnection(relayConn.uri, authToken)) {
         logger.info(`No local connections available, using relay: ${relayConn.uri}`);
         return relayConn.uri;
     }
